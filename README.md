@@ -156,4 +156,4 @@ Jika project ini membantu Anda, berikan ⭐ di repository ini!
 
 ---
 
-**Made with ❤️ for Mitra KPU Bea Cukai Tanjung Priok**
+**Made with ❤️ for MUHAMMAD ALFINAS**
