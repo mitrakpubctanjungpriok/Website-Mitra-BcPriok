@@ -1,7 +1,0 @@
-# Tambahkan file .nojekyll
-touch .nojekyll
-
-# Commit semua file
-git add .
-git commit -m "Fix: Add .nojekyll for Cloudflare Pages"
-git push origin main
