@@ -30,13 +30,13 @@
         .menu-label span::before{left:-20px}
         .menu-label span::after{right:-20px}
         
-        .menu-item{display:flex;align-items:center;padding:20px 22px;margin-bottom:14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;text-decoration:none;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
-        .menu-item:last-child{margin-bottom:0}
+        .menu-item{display:flex;align-items:center;padding:20px 22px;margin-bottom:14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;text-decoration:none;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.04);cursor:pointer}
         .menu-item:hover{border-color:#3b82f6;background:#f0f7ff;transform:translateX(4px)}
         .menu-item:active{transform:scale(0.98)}
         
         .menu-icon{width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,#1e40af);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-right:16px;flex-shrink:0}
         .menu-icon span{font-size:22px}
+        .menu-icon.green{background:linear-gradient(135deg,#10b981,#059669)}
         
         .menu-content{flex:1}
         .menu-title{font-size:16px;font-weight:600;color:#1e293b;margin-bottom:5px;display:block}
@@ -44,6 +44,32 @@
         
         .menu-arrow{width:36px;height:36px;background:linear-gradient(135deg,#3b82f6,#2563eb);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:18px}
         .menu-arrow svg{width:18px;height:18px;fill:#fff}
+        
+        /* Kontak Admin */
+        .contact-btn{display:flex;align-items:center;padding:20px 22px;margin-bottom:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;text-decoration:none;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(0,0,0,0.04);cursor:pointer;width:100%}
+        .contact-btn:hover{border-color:#10b981;background:#f0fdf4;transform:translateX(4px)}
+        .contact-btn:active{transform:scale(0.98)}
+        
+        .contact-options{display:none;margin-top:14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+        .contact-options.show{display:block;animation:fadeIn 0.2s ease}
+        
+        @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+        
+        .contact-option{display:flex;align-items:center;padding:16px 20px;text-decoration:none;border-bottom:1px solid #e2e8f0;transition:all 0.2s}
+        .contact-option:last-child{border-bottom:none}
+        .contact-option:hover{background:#f8fafc}
+        .contact-option:active{background:#f1f5f9}
+        
+        .contact-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-right:14px;flex-shrink:0}
+        .contact-icon.wa{background:linear-gradient(135deg,#25d366,#128c7e)}
+        .contact-icon.email{background:linear-gradient(135deg,#ea4335,#c5221f)}
+        .contact-icon span{font-size:20px}
+        
+        .contact-text{flex:1}
+        .contact-text strong{display:block;font-size:14px;font-weight:600;color:#1e293b;margin-bottom:2px}
+        .contact-text small{font-size:12px;color:#64748b}
+        
+        .contact-arrow{color:#94a3b8;font-size:18px}
         
         /* Footer */
         .footer{padding:22px;text-align:center;background:#fff;border-top:1px solid #e2e8f0}
@@ -62,13 +88,17 @@
             .header p{font-size:16px}
             .menu{padding:36px 32px}
             .menu-label span{font-size:14px}
-            .menu-item{padding:22px 26px;margin-bottom:16px;border-radius:14px}
+            .menu-item,.contact-btn{padding:22px 26px;margin-bottom:16px;border-radius:14px}
             .menu-icon{width:52px;height:52px;border-radius:14px;margin-right:18px}
             .menu-icon span{font-size:24px}
             .menu-title{font-size:17px;margin-bottom:6px}
             .menu-desc{font-size:14px}
             .menu-arrow{width:40px;height:40px;border-radius:10px}
             .menu-arrow svg{width:20px;height:20px}
+            .contact-options{border-radius:14px}
+            .contact-option{padding:18px 22px}
+            .contact-icon{width:46px;height:46px}
+            .contact-text strong{font-size:15px}
             .footer{padding:26px}
             .footer p{font-size:13px}
         }
@@ -82,8 +112,8 @@
             .header h1{font-size:30px}
             .header p{font-size:17px}
             .menu{padding:40px 36px}
-            .menu-item{padding:24px 28px}
-            .menu-item:hover{transform:translateX(6px);box-shadow:0 4px 16px rgba(59,130,246,0.15)}
+            .menu-item,.contact-btn{padding:24px 28px}
+            .menu-item:hover,.contact-btn:hover{transform:translateX(6px);box-shadow:0 4px 16px rgba(59,130,246,0.15)}
             .menu-icon{width:56px;height:56px;border-radius:14px;margin-right:20px}
             .menu-icon span{font-size:26px}
             .menu-title{font-size:18px}
@@ -106,13 +136,19 @@
             .menu-label{margin-bottom:18px}
             .menu-label span{font-size:11px;letter-spacing:1.5px}
             .menu-label span::before,.menu-label span::after{width:25px}
-            .menu-item{padding:14px 16px;margin-bottom:10px;border-radius:10px}
+            .menu-item,.contact-btn{padding:14px 16px;margin-bottom:10px;border-radius:10px}
             .menu-icon{width:40px;height:40px;border-radius:10px;margin-right:12px}
             .menu-icon span{font-size:18px}
             .menu-title{font-size:13px;margin-bottom:3px}
             .menu-desc{font-size:11px}
             .menu-arrow{width:30px;height:30px;margin-left:12px}
             .menu-arrow svg{width:14px;height:14px}
+            .contact-options{border-radius:10px;margin-top:10px}
+            .contact-option{padding:12px 14px}
+            .contact-icon{width:36px;height:36px;border-radius:8px;margin-right:10px}
+            .contact-icon span{font-size:16px}
+            .contact-text strong{font-size:12px}
+            .contact-text small{font-size:10px}
             .footer{padding:16px}
             .footer p{font-size:10px}
         }
@@ -125,19 +161,21 @@
             .header h1{font-size:20px}
             .header p{font-size:13px}
             .menu{padding:24px 20px}
-            .menu-item{padding:16px 18px}
+            .menu-item,.contact-btn{padding:16px 18px}
             .menu-icon{width:44px;height:44px;border-radius:10px;margin-right:14px}
             .menu-icon span{font-size:20px}
             .menu-title{font-size:14px}
             .menu-desc{font-size:12px}
             .menu-arrow{width:32px;height:32px}
+            .contact-option{padding:14px 16px}
+            .contact-icon{width:38px;height:38px}
         }
     </style>
 </head>
 <body>
     <div class="card">
         <header class="header">
-            <img src="logo_mitra_bc_priok.webp" alt="Logo KPU Bea Cukai" class="logo">
+            <img src="logo_mitra_bc_priok.png" alt="Logo KPU Bea Cukai" class="logo">
             <div class="badge"><span>Portal Mitra</span></div>
             <h1>Sistem Layanan Digital</h1>
             <p>KPU Bea Cukai Tanjung Priok</p>
@@ -157,10 +195,10 @@
                 </div>
             </a>
             
-            <a href="https://izin-keluar-area.pages.dev/" class="menu-item">
+            <a href="https://absensi-izin-keluar-kantor.pages.dev/" class="menu-item">
                 <div class="menu-icon"><span>🚪</span></div>
                 <div class="menu-content">
-                    <span class="menu-title">Izin Keluar area</span>
+                    <span class="menu-title">Izin Keluar Kantor</span>
                     <span class="menu-desc">Permohonan meninggalkan kantor sementara</span>
                 </div>
                 <div class="menu-arrow">
@@ -189,11 +227,53 @@
                     <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
                 </div>
             </a>
+            
+            <!-- Kontak Admin -->
+            <div class="contact-btn" onclick="toggleContact()">
+                <div class="menu-icon green"><span>📞</span></div>
+                <div class="menu-content">
+                    <span class="menu-title">Kontak Admin</span>
+                    <span class="menu-desc">Hubungi admin via WhatsApp atau Email</span>
+                </div>
+                <div class="menu-arrow">
+                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                </div>
+            </div>
+            
+            <!-- Pilihan Kontak -->
+            <div class="contact-options" id="contactOptions">
+                <!-- GANTI NOMOR WA DI BAWAH INI (format: 62xxx tanpa + atau 0) -->
+                <a href="https://wa.me/6281234567890" class="contact-option" target="_blank">
+                    <div class="contact-icon wa"><span>💬</span></div>
+                    <div class="contact-text">
+                        <strong>WhatsApp Admin</strong>
+                        <small>Chat langsung via WhatsApp</small>
+                    </div>
+                    <div class="contact-arrow">›</div>
+                </a>
+                
+                <!-- GANTI EMAIL DI BAWAH INI -->
+                <a href="mailto:mitrakpubctanjungpriok@gmail.com" class="contact-option">
+                    <div class="contact-icon email"><span>✉️</span></div>
+                    <div class="contact-text">
+                        <strong>Email Admin</strong>
+                        <small>Kirim pesan via Email</small>
+                    </div>
+                    <div class="contact-arrow">›</div>
+                </a>
+            </div>
         </nav>
         
         <footer class="footer">
             <p>© 2026 <span>KPU Bea Cukai Tanjung Priok</span></p>
         </footer>
     </div>
+    
+    <script>
+        function toggleContact() {
+            var options = document.getElementById('contactOptions');
+            options.classList.toggle('show');
+        }
+    </script>
 </body>
 </html>
