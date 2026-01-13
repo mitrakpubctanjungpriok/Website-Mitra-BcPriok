@@ -1,0 +1,3053 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEM IZIN CUTI</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; text-transform: uppercase; }
+        input, textarea, select { text-transform: uppercase; }
+        input::placeholder, textarea::placeholder { text-transform: uppercase; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        input[type="password"] { text-transform: none; }
+        /* Agar password tidak berubah jadi uppercase saat di-toggle jadi text */
+        .password-field { text-transform: none !important; }
+        img { max-width: 100%; height: auto; }
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation: none; }
+        }
+
+        /* MODE SOFTCOPY DI HP: FIT KE LAYAR (TIDAK TERASA MODE DESKTOP) */
+        @media screen {
+            body.print-preview {
+                background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+            }
+            body.print-preview #app {
+                padding: 14px 0 110px;
+            }
+            body.print-preview #printViewport {
+                display: flex;
+                justify-content: center;
+                padding: 12px;
+                overflow-x: hidden;
+            }
+            body.print-preview #printArea {
+                background: #fff;
+                border-radius: 14px;
+                box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+            }
+        }
+
+        @media print {
+            @page { size: A4; margin: 16mm 14mm; }
+
+            html, body { height: auto !important; }
+            body { background: #fff !important; }
+
+            /* Sembunyikan semua, tapi hindari elemen hidden yang tetap memakan tinggi */
+            body * { visibility: hidden; }
+
+            /* Pastikan wrapper preview tidak membuat halaman tambahan */
+            #app { padding: 0 !important; margin: 0 !important; }
+            #printViewport {
+                visibility: visible !important;
+                display: block !important;
+                min-height: 0 !important;
+                height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+            }
+            #printViewport * { visibility: visible !important; }
+
+            #printArea, #printArea * { visibility: visible; }
+
+            /* Biarkan browser mengatur layout A4 */
+            #printArea {
+                position: static;
+                left: auto;
+                top: auto;
+                width: auto;
+                margin: 0;
+                padding: 0;
+                transform: none !important;
+                zoom: 1 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                page-break-after: avoid;
+                break-after: avoid;
+            }
+
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div id="app"></div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        const CONFIG = {
+            GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbycFq82UTILZMFUaOTaUkCNXiZg0V0sF5b0JniNaqEuGqkqxaYegC-Bb25lWrwmT3v7vw/exec',
+            ADMIN_EMAIL: 'mitrakpubctanjungpriok@gmail.com',
+            // OPSIONAL: ISI DENGAN URL WEBSITE PUBLIK ANDA (AGAR QR SELALU MENGARAH KE DOMAIN PUBLIK)
+            // CONTOH: 'https://nama-domain-anda.com/index.html'
+            PUBLIC_BASE_URL: 'https://portal-mitra.pages.dev/cuti',
+            // LOGO UNTUK OVERLAY DI TENGAH QR
+            LOGO_URL: 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiBO_R0vvTCx7Nc0bMU5Y2jU0LlnZZO1-lBJRZOICD1nz9nDNA3Bn6xxhjAH33B6mmDJHlID3Bvl9u6ocm6nSvPANPpdKLcxyY8uO2PtZzXug45_dePGsVPIYrHoCVunC2clgEpITij_vvw/s1600/LOGO+Depkeu.JPG',
+            // LOGO UNTUK KOP SURAT
+            KEMENKEU_LOGO: 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiBO_R0vvTCx7Nc0bMU5Y2jU0LlnZZO1-lBJRZOICD1nz9nDNA3Bn6xxhjAH33B6mmDJHlID3Bvl9u6ocm6nSvPANPpdKLcxyY8uO2PtZzXug45_dePGsVPIYrHoCVunC2clgEpITij_vvw/s1600/LOGO+Depkeu.JPG'
+        };
+
+        // ==================== STATE ====================
+        const state = {
+            isAdminLoggedIn: false,
+            adminUsername: 'admin',
+            userRole: 'admin',
+            showAdminLogin: false,
+            showChangePassword: false,
+            showSettings: false,
+            showEmployeeForm: false,
+            showWhatsAppSettings: false,
+            showKopSettings: false,
+            showMaintenanceSettings: false,
+            showStatusCheck: false,
+            employees: [],
+            selectedEmployee: null,
+            page: 'select',
+            leaveRequests: [],
+            photoPreview: null,
+            photoFile: null,
+            searchTerm: '',
+            loading: false,
+            error: null,
+            formData: {
+                jabatan: '',
+                unitKerja: '',
+                jenisCuti: '',
+                alasan: '',
+                lamaCuti: '',
+                tanggalMulai: '',
+                tanggalSelesai: '',
+                alamat: '',
+                telepon: '',
+                email: '',
+                petugasPengganti: '',
+                persetujuanPengawas: ''
+            },
+            submittedData: null,
+            currentTime: new Date(),
+            adminFilterDate: '',
+            employeeFormData: {
+                id: '',
+                name: '',
+                usedLeave: 0,
+                supervisorName: '',
+                supervisorSalutation: '',
+                supervisorPhone: '',
+                maxLeaveRequestDays: 2
+            },
+            editingEmployee: null,
+            employeeSearchTerm: '',
+            settings: {
+                websiteActive: true,
+                adminWa: '',
+                kopMengetahuiName: '',
+                kopMengetahuiNip: ''
+            },
+            statusCheckId: '', // DIPAKAI UNTUK MENYIMPAN ID KARYAWAN TERPILIH (DARI NAMA)
+            statusEmployeeSearchTerm: '',
+            statusCheckResult: null,
+            autoRefreshInterval: null,
+            isModalOpen: false,
+            printData: null
+        };
+
+        // ==================== UTILITY FUNCTIONS ====================
+        function formatDate(date) {
+            const days = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+            const months = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'];
+            const d = new Date(date);
+            return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        function formatTime(date) {
+            const d = new Date(date);
+            return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
+        }
+
+        function formatDateShort(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+        }
+
+        function formatDateTimeShort(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '-';
+
+            // PAKSA WIB (ASIA/JAKARTA) AGAR KONSISTEN DI SEMUA DEVICE
+            try {
+                const parts = new Intl.DateTimeFormat('id-ID', {
+                    timeZone: 'Asia/Jakarta',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }).formatToParts(d);
+
+                const get = (type) => (parts.find(p => p.type === type) || {}).value || '';
+                const dd = get('day');
+                const mm = get('month');
+                const yyyy = get('year');
+                const hh = get('hour');
+                const min = get('minute');
+                return `${dd}/${mm}/${yyyy} - ${hh}:${min} WIB`;
+            } catch (e) {
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yyyy = d.getFullYear();
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                return `${dd}/${mm}/${yyyy} - ${hh}:${min} WIB`;
+            }
+        }
+
+        function calculateEndDate(startDate, duration) {
+            if (!startDate || !duration) return '';
+            const start = new Date(startDate);
+            const days = parseInt(duration);
+            if (days === 1) return startDate;
+            start.setDate(start.getDate() + days - 1);
+            return start.toISOString().split('T')[0];
+        }
+
+        function calculateDuration(start, end) {
+            if (!start || !end) return 0;
+            const s = new Date(start);
+            const e = new Date(end);
+            return Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        // ===== HITUNG CUTI TANPA SABTU/MINGGU (HARI KERJA) =====
+        function isWeekendDateObj(d) {
+            const day = d.getDay();
+            return day === 0 || day === 6; // MINGGU(0) / SABTU(6)
+        }
+
+        function parseDateOnly(dateStr) {
+            const s = String(dateStr || '').substring(0, 10);
+            const parts = s.split('-');
+            if (parts.length !== 3) return null;
+            const y = parseInt(parts[0]);
+            const m = parseInt(parts[1]);
+            const d = parseInt(parts[2]);
+            if ([y, m, d].some(n => isNaN(n))) return null;
+            return new Date(y, m - 1, d);
+        }
+
+        function formatDateOnly(d) {
+            const yy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yy}-${mm}-${dd}`;
+        }
+
+        // Jika tanggal jatuh di Sabtu/Minggu, geser ke hari kerja berikutnya
+        function adjustToNextWeekday(dateStr) {
+            const dt = parseDateOnly(dateStr);
+            if (!dt) return '';
+            if (!isWeekendDateObj(dt)) return formatDateOnly(dt);
+            const moved = new Date(dt);
+            while (isWeekendDateObj(moved)) moved.setDate(moved.getDate() + 1);
+            return formatDateOnly(moved);
+        }
+
+        // Hitung tanggal selesai berdasarkan lama cuti (hari kerja), tanpa menghitung Sabtu/Minggu.
+        // Durasi bersifat inklusif (hari pertama = tanggal mulai).
+        function calculateEndDateWorkdays(startDateStr, duration) {
+            if (!startDateStr || !duration) return '';
+            const days = parseInt(duration);
+            if (isNaN(days) || days < 1) return '';
+
+            // Pastikan start adalah hari kerja
+            let start = parseDateOnly(startDateStr);
+            if (!start) return '';
+            if (isWeekendDateObj(start)) {
+                // Geser ke hari kerja berikutnya
+                start = parseDateOnly(adjustToNextWeekday(startDateStr));
+            }
+
+            if (days === 1) return formatDateOnly(start);
+
+            const dt = new Date(start);
+            let added = 0;
+            while (added < (days - 1)) {
+                dt.setDate(dt.getDate() + 1);
+                if (!isWeekendDateObj(dt)) added++;
+            }
+            return formatDateOnly(dt);
+        }
+
+        // Hitung durasi hari kerja dari start-end (inklusif) tanpa Sabtu/Minggu
+        function calculateDurationWorkdays(startDateStr, endDateStr) {
+            if (!startDateStr || !endDateStr) return 0;
+            const start = parseDateOnly(startDateStr);
+            const end = parseDateOnly(endDateStr);
+            if (!start || !end) return 0;
+            if (end < start) return 0;
+
+            let count = 0;
+            const dt = new Date(start);
+            while (dt <= end) {
+                if (!isWeekendDateObj(dt)) count++;
+                dt.setDate(dt.getDate() + 1);
+            }
+            return count;
+        }
+
+        // Tambah hari untuk tanggal format yyyy-mm-dd (AMAN untuk WIB, tanpa geser timezone)
+        function addDaysDateOnly(dateStr, days) {
+            if (!dateStr) return '';
+            const s = String(dateStr).substring(0, 10);
+            const parts = s.split('-');
+            if (parts.length !== 3) return '';
+            const y = parseInt(parts[0]);
+            const m = parseInt(parts[1]);
+            const d = parseInt(parts[2]);
+            if ([y, m, d].some(n => isNaN(n))) return '';
+            const dt = new Date(y, m - 1, d);
+            dt.setDate(dt.getDate() + (parseInt(days) || 0));
+            const yy = dt.getFullYear();
+            const mm = String(dt.getMonth() + 1).padStart(2, '0');
+            const dd = String(dt.getDate()).padStart(2, '0');
+            return `${yy}-${mm}-${dd}`;
+        }
+
+        function formatLamaCuti(val) {
+            const v = String(val || '').trim();
+            if (!v) return '-';
+            const n = parseInt(v);
+            if (!isNaN(n)) return `${n} HARI`;
+            return v.toUpperCase();
+        }
+
+        function getSupervisorNameForRequest(req) {
+            // Prefer data from request if available
+            if (req && req.supervisorName) return String(req.supervisorName).trim();
+            // Fallback: try find employee by ID and use supervisorName
+            const emp = state.employees?.find(e => String(e.id).toUpperCase() === String(req.id || '').toUpperCase());
+            if (emp && emp.supervisorName) return String(emp.supervisorName).trim();
+            return 'Pengawas';
+        }
+
+        function getSupervisorSalutationForRequest(req) {
+            // Prefer data from request if available
+            if (req && req.supervisorSalutation) return String(req.supervisorSalutation).trim();
+            // Fallback: try find employee by ID and use supervisorSalutation
+            const emp = state.employees?.find(e => String(e.id).toUpperCase() === String(req.id || '').toUpperCase());
+            if (emp && emp.supervisorSalutation) return String(emp.supervisorSalutation).trim();
+            return '';
+        }
+
+        // Template pesan WhatsApp yang profesional (3 OPSI)
+        // NOTE: Untuk menghindari sapaan rancu "Bapak/Ibu", gunakan field SAPAAN PENGAWAS (BAPAK/IBU)
+        // dari data Karyawan. Jika belum diisi, pesan akan menggunakan "Yth. {NAMA PENGAWAS}" tanpa Bapak/Ibu.
+        const WA_TEMPLATES = [
+            {
+                id: 1,
+                label: 'KONFIRMASI PERSETUJUAN',
+                message: ({ salutation, supervisorName, nama, jenisCuti, tanggal, baseUrl }) => {
+                    const to = `${salutation ? salutation + ' ' : ''}${supervisorName || 'Pengawas'}`;
+                    return `Yth. ${to},\n\nDengan hormat, saya Admin Sistem Cuti KPU BC Tanjung Priok.\n\nMohon konfirmasi persetujuan untuk pengajuan cuti berikut:\n\n📋 *DATA PENGAJUAN*\n• Nama Karyawan: *${nama}*\n• Jenis Cuti: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas pesan ini dengan:\n✅ *SETUJU* - jika menyetujui pengajuan\n❌ *TIDAK SETUJU* - jika menolak pengajuan\n\nTerima kasih.\n\n_Pesan otomatis dari Sistem Izin Cuti_\n${baseUrl}`;
+                }
+            },
+            {
+                id: 2,
+                label: 'REMINDER PERSETUJUAN',
+                message: ({ salutation, supervisorName, nama, jenisCuti, tanggal }) => {
+                    const to = `${salutation ? salutation + ' ' : ''}${supervisorName || 'Pengawas'}`;
+                    return `Yth. ${to},\n\nMohon maaf mengganggu. Ini adalah pengingat untuk konfirmasi pengajuan cuti:\n\n• Nama: *${nama}*\n• Jenis: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas:\n✅ *SETUJU* atau ❌ *TIDAK SETUJU*\n\nTerima kasih.\n\n_Sistem Izin Cuti KPU BC Tanjung Priok_`;
+                }
+            },
+            {
+                id: 3,
+                label: 'URGENT - BUTUH KEPUTUSAN',
+                message: ({ salutation, supervisorName, nama, jenisCuti, tanggal }) => {
+                    const to = `${salutation ? salutation + ' ' : ''}${supervisorName || 'Pengawas'}`;
+                    return `🔔 *URGENT - KONFIRMASI CUTI*\n\nYth. ${to},\n\nPengajuan cuti berikut membutuhkan keputusan segera:\n\n👤 *${nama}*\n📝 ${jenisCuti}\n📅 ${tanggal}\n\nMohon segera balas:\n✅ *SETUJU*\n❌ *TIDAK SETUJU*\n\nTerima kasih.`;
+                }
+            }
+        ];
+
+        function buildSupervisorWaLink(req, option = 1) {
+            const phone = String(req.supervisorPhone || '').trim();
+            if (!phone) return '#';
+
+            const supervisorName = getSupervisorNameForRequest(req);
+            const salutation = getSupervisorSalutationForRequest(req);
+
+            // Untuk pesan WA: biarkan format lebih natural (tidak wajib uppercase)
+            const nama = String(req.nama || '').trim();
+            const jenisCuti = String(req.jenisCuti || '').trim();
+            const tanggal = `${formatDateShort(req.tanggalMulai)} - ${formatDateShort(req.tanggalSelesai)}`;
+
+            // gunakan PUBLIC_BASE_URL agar link dalam template selalu ke domain publik
+            const baseUrl = (CONFIG.PUBLIC_BASE_URL && String(CONFIG.PUBLIC_BASE_URL).trim())
+                ? String(CONFIG.PUBLIC_BASE_URL).trim().split('?')[0].split('#')[0]
+                : (window.location.origin && window.location.origin !== 'null')
+                    ? (window.location.origin + window.location.pathname)
+                    : window.location.href.split('?')[0].split('#')[0];
+
+            const template = WA_TEMPLATES.find(t => t.id === option) || WA_TEMPLATES[0];
+            const body = template.message({ salutation, supervisorName, nama, jenisCuti, tanggal, baseUrl });
+
+            return `https://wa.me/${phone}?text=${encodeURIComponent(body)}`;
+        }
+
+        // ==================== QR (OFFLINE) ====================
+        // QR generator minimal (tanpa library eksternal). Versi ini menampilkan QR yang valid
+        // untuk kebutuhan verifikasi (scan-to-print). Dirancang ringan.
+        // Catatan: implementasi menggunakan encoder sederhana berbasis error-correction level L.
+        // Untuk keperluan internal, ini cukup stabil dan tidak bergantung pada akses ke provider QR.
+        function renderQrToElement(elementId, text) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            // Pastikan container punya layout terukur
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'center';
+
+            // Ukuran mengikuti container (fallback 115). 115px lebih mudah discan saat diprint.
+            const targetSize = Math.max(90, Math.min(180, (el.clientWidth || 115)));
+
+            // PRIORITAS: pakai gambar QR resolusi tinggi + error correction H + margin (quiet zone) cukup
+            // Ini jauh lebih mudah terdeteksi kamera saat discan dari kertas.
+            const img = document.createElement('img');
+            img.alt = 'QR';
+            img.style.width = targetSize + 'px';
+            img.style.height = targetSize + 'px';
+            img.style.display = 'block';
+            img.style.imageRendering = 'pixelated';
+            img.style.setProperty('image-rendering', 'crisp-edges');
+            img.draggable = false;
+            img.loading = 'eager';
+            img.decoding = 'async';
+            img.referrerPolicy = 'no-referrer';
+            img.crossOrigin = 'anonymous';
+            // Gunakan resolusi kelipatan dari ukuran cetak agar tidak blur saat dicetak.
+            // Prinsip: pakai faktor skala integer (misal 6x) sehingga QR tidak "blur" ketika diprint.
+            // chld=H|4 => error correction tinggi + quiet zone standar (kotak QR jadi lebih besar, lebih mudah discan)
+            const scaleFactor = 8;
+            const hi = Math.max(320, Math.min(1200, targetSize * scaleFactor));
+            img.style.imageRendering = 'pixelated';
+            img.style.setProperty('image-rendering', 'crisp-edges');
+            // Provider utama: QRServer (stabil) + error correction tinggi (H) + quiet zone (margin)
+            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${hi}x${hi}&ecc=H&margin=4&data=${encodeURIComponent(String(text))}`;
+
+            // Fallback 1: QuickChart (jika QRServer diblok)
+            let _triedBackupProvider = false;
+
+            // Fallback: jika provider diblok total, pakai QR offline.
+            // Catatan: QR offline kita hanya EC level L, jadi jika terpaksa pakai offline maka overlay logo akan disembunyikan
+            // agar QR tetap bisa terbaca.
+            img.onerror = () => {
+                if (!_triedBackupProvider) {
+                    _triedBackupProvider = true;
+                    img.src = `https://quickchart.io/qr?text=${encodeURIComponent(String(text))}&size=${hi}&ecLevel=H&margin=4`;
+                    return;
+                }
+
+                try {
+                    // Jika masuk mode offline, sembunyikan overlay logo (supaya QR bisa discan)
+                    try {
+                        const overlay = el.parentElement && el.parentElement.querySelector('[data-qr-overlay]');
+                        if (overlay) overlay.style.display = 'none';
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    const quiet = 10; // lebih besar agar lebih mudah discan
+                    const qr = QRCodeMinimal.encode(text);
+                    const cells = qr.modules.length;
+
+                    const usable = targetSize - (quiet * 2);
+                    const scale = Math.max(1, Math.floor(usable / cells));
+                    const drawnSize = scale * cells;
+                    const extra = targetSize - drawnSize;
+                    const pad = Math.floor(extra / 2);
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetSize;
+                    canvas.height = targetSize;
+                    canvas.style.width = targetSize + 'px';
+                    canvas.style.height = targetSize + 'px';
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, targetSize, targetSize);
+
+                    const offset = pad;
+                    ctx.fillStyle = '#000';
+                    for (let r = 0; r < cells; r++) {
+                        for (let c = 0; c < cells; c++) {
+                            if (qr.modules[r][c]) {
+                                ctx.fillRect(offset + c * scale, offset + r * scale, scale, scale);
+                            }
+                        }
+                    }
+
+                    el.innerHTML = '';
+                    el.appendChild(canvas);
+                } catch (e) {
+                    console.error('GAGAL GENERATE QR:', e);
+                    el.innerHTML = '';
+                }
+            };
+
+            el.innerHTML = '';
+            el.appendChild(img);
+        }
+
+        // QR encoder minimal (MODE BYTE, VERSION 3, EC LEVEL L) untuk teks URL pendek.
+        // verifyUrl kita pendek, aman masuk kapasitas.
+        const QRCodeMinimal = (() => {
+            function encode(text) {
+                // Version 3-L capacity (byte mode) 53 bytes.
+                // Penting: JANGAN DIPOTONG, karena QR harus membuka URL verifikasi lengkap.
+                const bytes = new TextEncoder().encode(String(text));
+                if (bytes.length > 53) {
+                    throw new Error('DATA TERLALU PANJANG UNTUK QR OFFLINE VERSION 3-L');
+                }
+                const data = bytes;
+
+                // Build bit stream
+                const bits = [];
+                const pushBits = (val, len) => {
+                    for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+                };
+
+                // Mode indicator: byte (0100)
+                pushBits(0b0100, 4);
+                // Character count (version 1-9 => 8 bits)
+                pushBits(data.length, 8);
+                // Data bytes
+                for (const b of data) pushBits(b, 8);
+                // Terminator
+                pushBits(0, 4);
+
+                // Pad to byte boundary
+                while (bits.length % 8 !== 0) bits.push(0);
+
+                // Convert to codewords
+                const codewords = [];
+                for (let i = 0; i < bits.length; i += 8) {
+                    let cw = 0;
+                    for (let j = 0; j < 8; j++) cw = (cw << 1) | bits[i + j];
+                    codewords.push(cw);
+                }
+
+                // Version 3-L: total codewords = 70, data codewords = 55, ec codewords = 15
+                while (codewords.length < 55) {
+                    codewords.push(codewords.length % 2 === 0 ? 0xEC : 0x11);
+                }
+                codewords.length = 55;
+
+                const ec = reedSolomonCompute(codewords, 15);
+                const all = codewords.concat(ec);
+
+                // Build matrix
+                const version = 3;
+                const size = 21 + (version - 1) * 4; // 29
+                const m = makeMatrix(size);
+                const res = makeMatrix(size, false);
+
+                // Finder patterns + separators
+                placeFinder(m, 0, 0);
+                placeFinder(m, 0, size - 7);
+                placeFinder(m, size - 7, 0);
+                placeTiming(m);
+                placeDarkModule(m, version);
+                placeAlignment(m, version);
+
+                // Reserve format info areas
+                reserveFormatAreas(m);
+
+                // Place data
+                placeData(m, all);
+
+                // Mask 0 (simple)
+                applyMask(m, 0);
+
+                // Format info for EC L + mask 0
+                placeFormatInfo(m, 0);
+
+                // Convert to boolean modules (true=black)
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        res[r][c] = m[r][c] === 1;
+                    }
+                }
+
+                return { modules: res };
+            }
+
+            function makeMatrix(size, fill = null) {
+                const a = new Array(size);
+                for (let i = 0; i < size; i++) {
+                    a[i] = new Array(size);
+                    for (let j = 0; j < size; j++) a[i][j] = fill;
+                }
+                return a;
+            }
+
+            function placeFinder(m, r0, c0) {
+                const size = m.length;
+                for (let r = -1; r <= 7; r++) {
+                    for (let c = -1; c <= 7; c++) {
+                        const rr = r0 + r;
+                        const cc = c0 + c;
+                        if (rr < 0 || cc < 0 || rr >= size || cc >= size) continue;
+                        const on = (r >= 0 && r <= 6 && c >= 0 && c <= 6 && (
+                            r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)
+                        ));
+                        const sep = (r === -1 || r === 7 || c === -1 || c === 7);
+                        m[rr][cc] = sep ? 0 : (on ? 1 : 0);
+                    }
+                }
+            }
+
+            function placeTiming(m) {
+                const size = m.length;
+                for (let i = 8; i < size - 8; i++) {
+                    if (m[6][i] === null) m[6][i] = (i % 2 === 0) ? 1 : 0;
+                    if (m[i][6] === null) m[i][6] = (i % 2 === 0) ? 1 : 0;
+                }
+            }
+
+            function placeDarkModule(m, version) {
+                const size = m.length;
+                m[4 * version + 9][8] = 1;
+            }
+
+            function placeAlignment(m, version) {
+                // Version 3 has alignment pattern at (22,22) (0-index)
+                if (version < 2) return;
+                const pos = 22;
+                placeAlignmentPattern(m, pos - 2, pos - 2);
+            }
+
+            function placeAlignmentPattern(m, r0, c0) {
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        const on = r === 0 || r === 4 || c === 0 || c === 4 || (r === 2 && c === 2);
+                        m[r0 + r][c0 + c] = on ? 1 : 0;
+                    }
+                }
+            }
+
+            function reserveFormatAreas(m) {
+                const size = m.length;
+                for (let i = 0; i < 9; i++) {
+                    if (m[8][i] === null) m[8][i] = 0;
+                    if (m[i][8] === null) m[i][8] = 0;
+                }
+                for (let i = size - 8; i < size; i++) {
+                    if (m[8][i] === null) m[8][i] = 0;
+                    if (m[i][8] === null) m[i][8] = 0;
+                }
+                m[8][8] = 0;
+            }
+
+            function placeData(m, allCodewords) {
+                const size = m.length;
+                // Convert codewords to bit stream
+                const bits = [];
+                for (const cw of allCodewords) {
+                    for (let i = 7; i >= 0; i--) bits.push((cw >> i) & 1);
+                }
+
+                let bitIndex = 0;
+                let dir = -1;
+                for (let col = size - 1; col > 0; col -= 2) {
+                    if (col === 6) col--; // skip timing column
+                    for (let row = (dir === -1 ? size - 1 : 0);
+                         dir === -1 ? row >= 0 : row < size;
+                         row += dir) {
+                        for (let c = 0; c < 2; c++) {
+                            const cc = col - c;
+                            if (m[row][cc] !== null) continue;
+                            const bit = bits[bitIndex++] || 0;
+                            m[row][cc] = bit;
+                        }
+                    }
+                    dir *= -1;
+                }
+            }
+
+            function applyMask(m, mask) {
+                const size = m.length;
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        // skip function patterns: we approximate by checking reserved (null means data was placed)
+                        // At this stage, all cells are 0/1. We mark function patterns by simple heuristics:
+                        // Do not mask finder+timing+format+alignment areas where we wrote early.
+                        if (isFunctionModule(r, c, size)) continue;
+                        if (mask === 0) {
+                            if ((r + c) % 2 === 0) m[r][c] ^= 1;
+                        }
+                    }
+                }
+            }
+
+            function isFunctionModule(r, c, size) {
+                // finder areas
+                const inFinder = (r <= 8 && c <= 8) || (r <= 8 && c >= size - 9) || (r >= size - 9 && c <= 8);
+                if (inFinder) return true;
+                // timing
+                if (r === 6 || c === 6) return true;
+                // format
+                if (r === 8 || c === 8) return true;
+                // alignment (version 3)
+                if (r >= 20 && r <= 24 && c >= 20 && c <= 24) return true;
+                // dark module
+                if (r === 21 && c === 8) return true;
+                return false;
+            }
+
+            function placeFormatInfo(m, mask) {
+                // EC level L = 01, mask 0 = 000
+                const ec = 0b01;
+                const format = (ec << 3) | (mask & 0b111);
+                const formatBits = formatInfoBits(format);
+                const size = m.length;
+
+                const coords1 = [
+                    [8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]
+                ];
+                for (let i = 0; i < 15; i++) {
+                    const [r,c] = coords1[i];
+                    m[r][c] = formatBits[i];
+                }
+
+                const coords2 = [
+                    [size-1,8],[size-2,8],[size-3,8],[size-4,8],[size-5,8],[size-6,8],[size-7,8],
+                    [8,size-8],[8,size-7],[8,size-6],[8,size-5],[8,size-4],[8,size-3],[8,size-2],[8,size-1]
+                ];
+                for (let i = 0; i < 15; i++) {
+                    const [r,c] = coords2[i];
+                    m[r][c] = formatBits[i];
+                }
+            }
+
+            function formatInfoBits(format) {
+                // BCH(15,5) with generator 0x537 and mask 0x5412
+                let data = format << 10;
+                const gen = 0x537;
+                for (let i = 14; i >= 10; i--) {
+                    if ((data >> i) & 1) data ^= gen << (i - 10);
+                }
+                const bch = ((format << 10) | data) ^ 0x5412;
+                const bits = [];
+                for (let i = 14; i >= 0; i--) bits.push((bch >> i) & 1);
+                return bits;
+            }
+
+            // --- Reed-Solomon over GF(256) ---
+            const GF = (() => {
+                const exp = new Array(512);
+                const log = new Array(256);
+                let x = 1;
+                for (let i = 0; i < 255; i++) {
+                    exp[i] = x;
+                    log[x] = i;
+                    x <<= 1;
+                    if (x & 0x100) x ^= 0x11d;
+                }
+                for (let i = 255; i < 512; i++) exp[i] = exp[i - 255];
+                return { exp, log };
+            })();
+
+            function gfMul(a, b) {
+                if (a === 0 || b === 0) return 0;
+                return GF.exp[GF.log[a] + GF.log[b]];
+            }
+
+            function reedSolomonCompute(data, ecLen) {
+                const gen = rsGenerator(ecLen);
+                const res = new Array(ecLen).fill(0);
+                for (const d of data) {
+                    const factor = d ^ res[0];
+                    res.shift();
+                    res.push(0);
+                    for (let i = 0; i < ecLen; i++) {
+                        res[i] ^= gfMul(gen[i], factor);
+                    }
+                }
+                return res;
+            }
+
+            function rsGenerator(ecLen) {
+                let poly = [1];
+                for (let i = 0; i < ecLen; i++) {
+                    poly = rsPolyMul(poly, [1, GF.exp[i]]);
+                }
+                // remove leading 1
+                poly.shift();
+                return poly;
+            }
+
+            function rsPolyMul(p, q) {
+                const r = new Array(p.length + q.length - 1).fill(0);
+                for (let i = 0; i < p.length; i++) {
+                    for (let j = 0; j < q.length; j++) {
+                        r[i + j] ^= gfMul(p[i], q[j]);
+                    }
+                }
+                return r;
+            }
+
+            return { encode };
+        })();
+
+        // ==================== API FUNCTIONS ====================
+        async function apiCall(action, data = {}) {
+            try {
+                // Pakai Content-Type text/plain agar tidak kena preflight CORS dan tetap bisa baca respon JSON
+                const response = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action, ...data })
+                });
+
+                const text = await response.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    // fallback jika respon bukan JSON
+                    return { success: true };
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function apiGet(action, params = {}) {
+            try {
+                const url = new URL(CONFIG.GOOGLE_SCRIPT_URL);
+                url.searchParams.append('action', action);
+                Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+                
+                const response = await fetch(url.toString());
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function loadEmployees() {
+            state.loading = true;
+            render();
+            try {
+                const result = await apiGet('getEmployees');
+                if (result.success) {
+                    state.employees = result.data || [];
+                }
+            } catch (error) {
+                state.error = 'GAGAL MEMUAT DATA KARYAWAN';
+            }
+            state.loading = false;
+            render();
+        }
+
+        async function loadLeaveRequests() {
+            try {
+                const result = await apiGet('getLeaveRequests');
+                if (result.success) {
+                    state.leaveRequests = result.data || [];
+                }
+            } catch (error) {
+                console.error('Error loading leave requests:', error);
+            }
+            render();
+        }
+
+        async function loadSettings() {
+            try {
+                const result = await apiGet('getSettings');
+                if (result.success) {
+                    state.settings = { ...state.settings, ...result.data };
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        async function submitLeaveRequest() {
+            state.loading = true;
+            render();
+
+            const data = {
+                employeeId: state.selectedEmployee.id,
+                employeeName: state.selectedEmployee.name,
+                ...state.formData,
+                supervisorPhone: state.selectedEmployee.supervisorPhone || '',
+                photo: state.photoPreview || '',
+                tanggalPengajuan: new Date().toISOString()
+            };
+
+            try {
+                // CEK: apakah sudah ada pengajuan hari ini (WIB)
+                const todayInfo = await apiGet('getTodaySubmission', { employeeId: String(state.selectedEmployee.id || '').trim() });
+                if (todayInfo && todayInfo.success && todayInfo.data && todayInfo.data.exists) {
+                    const st = String(todayInfo.data.status || '').toUpperCase();
+                    if (st && st !== 'MENUNGGU') {
+                        state.loading = false;
+                        render();
+                        alert('ANDA SUDAH MEMBUAT PENGAJUAN HARI INI DAN SUDAH DIPROSES. SILAKAN AJUKAN KEMBALI BESOK.');
+                        return;
+                    }
+                    // Jika MENUNGGU: lanjut upsert (update yang lama jadi data terbaru)
+                }
+
+                // UPSERT: jika karyawan submit di tanggal yang sama, data akan di-update (bukan tambah baris baru)
+                const res = await apiCall('upsertLeaveToday', data);
+                if (res && res.success === false) {
+                    state.loading = false;
+                    render();
+                    alert(res.error || 'GAGAL MENGIRIM PENGAJUAN!');
+                    return;
+                }
+
+                const durKerja = calculateDurationWorkdays(data.tanggalMulai, data.tanggalSelesai);
+                state.submittedData = {
+                    ...data,
+                    terpakai: durKerja,
+                    sisa: state.selectedEmployee.remainingLeave - (data.jenisCuti === 'CUTI TAHUNAN' ? durKerja : 0)
+                };
+
+                // SEKALI PAKAI: setelah submit berhasil, batas maksimal kembali ke 2 hari
+                try {
+                    const idx = state.employees.findIndex(e => String(e.id).toUpperCase() === String(state.selectedEmployee.id).toUpperCase());
+                    if (idx >= 0) state.employees[idx].maxLeaveRequestDays = 2;
+                    state.selectedEmployee.maxLeaveRequestDays = 2;
+                } catch (e) {
+                    // ignore
+                }
+
+                state.page = 'result';
+            } catch (error) {
+                alert('GAGAL MENGIRIM PENGAJUAN!');
+            }
+            
+            state.loading = false;
+            render();
+        }
+
+        async function handleApproval(request, status) {
+            if (!confirm(`YAKIN INGIN ${status === 'DISETUJUI' ? 'MENYETUJUI' : 'MENOLAK'} PENGAJUAN INI?`)) return;
+            
+            state.loading = true;
+            render();
+
+            try {
+                const updated = await apiCall('updateLeaveStatus', {
+                    requestId: request.rowIndex,
+                    status: status,
+                    adminName: state.adminUsername,
+                    processedDate: new Date().toISOString()
+                });
+                if (!updated || updated.success === false) {
+                    alert((updated && updated.error) ? updated.error : 'GAGAL MENGUPDATE STATUS!');
+                    state.loading = false;
+                    render();
+                    return;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await loadLeaveRequests();
+                await loadEmployees();
+            } catch (error) {
+                alert('GAGAL MENGUPDATE STATUS!');
+            }
+            
+            state.loading = false;
+            render();
+        }
+
+        async function checkStatus() {
+            if (!state.statusCheckId || !String(state.statusCheckId).trim()) {
+                alert('PILIH NAMA KARYAWAN TERLEBIH DAHULU!');
+                return;
+            }
+            
+            state.loading = true;
+            render();
+
+            try {
+                const result = await apiGet('checkStatus', { employeeId: String(state.statusCheckId).trim().toUpperCase() });
+                state.statusCheckResult = result.success ? result.data : null;
+                if (!result.success) {
+                    alert('DATA TIDAK DITEMUKAN!');
+                }
+            } catch (error) {
+                alert('GAGAL MENGECEK STATUS!');
+            }
+            
+            state.loading = false;
+            render();
+        }
+
+        // ==================== RENDER FUNCTIONS ====================
+        function render() {
+            const app = document.getElementById('app');
+
+            // Pastikan mode preview print tidak terbawa ke halaman lain
+            document.body.classList.remove('print-preview');
+            
+            if (!state.settings.websiteActive && !state.isAdminLoggedIn) {
+                app.innerHTML = renderMaintenancePage();
+                return;
+            }
+
+            // Check for print action in URL
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // SHORT LINK QR: ?p=ROWINDEX (agar QR offline muat & stabil)
+            if (urlParams.get('p')) {
+                renderPrintPage(urlParams.get('p'));
+                return;
+            }
+
+            if (urlParams.get('action') === 'print') {
+                renderPrintPage(urlParams.get('id'));
+                return;
+            }
+
+            let content = '';
+            switch (state.page) {
+                case 'select':
+                    content = renderSelectPage();
+                    break;
+                case 'form':
+                    content = renderFormPage();
+                    break;
+                case 'result':
+                    content = renderResultPage();
+                    break;
+                case 'admin':
+                    content = renderAdminPage();
+                    break;
+            }
+            
+            app.innerHTML = content;
+            
+            // Render modals
+            if (state.showAdminLogin) app.innerHTML += renderAdminLoginModal();
+            if (state.showSettings) app.innerHTML += renderSettingsModal();
+            if (state.showChangePassword) app.innerHTML += renderChangePasswordModal();
+            if (state.showEmployeeForm) app.innerHTML += renderEmployeeModal();
+            if (state.showWhatsAppSettings) app.innerHTML += renderWhatsAppModal();
+            if (state.showKopSettings) app.innerHTML += renderKopModal();
+            if (state.showMaintenanceSettings) app.innerHTML += renderMaintenanceModal();
+            if (state.showStatusCheck) app.innerHTML += renderStatusCheckModal();
+
+            attachEventListeners();
+
+        }
+
+        function renderHeader(showAdmin = true, wrapperClass = 'mb-6') {
+            return `
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:gap-3 items-start ${wrapperClass}">
+                    <div class="flex items-start gap-2 sm:gap-3 min-w-0">
+                        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/80 ring-1 ring-white/70 shadow-sm flex items-center justify-center flex-none mt-0.5">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <h1 class="text-[clamp(13px,4.2vw,20px)] font-extrabold text-slate-800 leading-none whitespace-nowrap tracking-tight">SISTEM IZIN CUTI</h1>
+                            <div class="mt-1 text-[11px] sm:text-sm">
+                                <div class="font-medium text-slate-700" data-date>${formatDate(state.currentTime)}</div>
+                                <div class="text-indigo-700 font-extrabold" data-clock>${formatTime(state.currentTime)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${showAdmin ? `
+                    <div class="flex items-center gap-1.5 sm:gap-2 justify-end flex-none">
+                        <button onclick="openStatusCheck()" class="p-1.5 sm:p-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition" title="CEK STATUS">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                            </svg>
+                        </button>
+                        <button onclick="openAdminLogin()" class="p-1.5 sm:p-2 bg-slate-600 text-white rounded-lg shadow hover:bg-slate-700 transition" title="ADMIN">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function renderSelectPage() {
+            const filteredEmployees = state.employees.filter(emp => 
+                emp.name.toUpperCase().includes(state.searchTerm.toUpperCase()) ||
+                emp.id.toUpperCase().includes(state.searchTerm.toUpperCase())
+            );
+
+            return `
+                <div class="max-w-4xl mx-auto p-4 sm:p-8">
+                    <!-- HEADER BLOCK (DIPISAH DARI PENCARIAN) -->
+                    <div class="relative overflow-hidden rounded-2xl shadow-xl mb-5">
+                        <div class="absolute inset-0 bg-gradient-to-r from-sky-100 via-blue-100 to-indigo-100"></div>
+                        <div class="absolute -top-16 -right-16 w-56 h-56 bg-white/40 blur-2xl rounded-full"></div>
+                        <div class="absolute -bottom-20 -left-16 w-72 h-72 bg-indigo-200/40 blur-3xl rounded-full"></div>
+
+                        <div class="relative p-5 sm:p-6">
+                            <div class="bg-white/60 backdrop-blur-md ring-1 ring-white/70 rounded-2xl p-4 sm:p-5">
+                                ${renderHeader(true, 'mb-0')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SEARCH + LIST CARD -->
+                    <div class="bg-white rounded-2xl shadow-xl p-5 sm:p-8">
+                        <div class="relative mb-6">
+                            <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <input type="text" 
+                                id="searchInput"
+                                placeholder="CARI NAMA KARYAWAN..." 
+                                class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base sm:text-lg bg-gray-50/60"
+                                value="${state.searchTerm}"
+                                oninput="updateSearchTerm(this.value)">
+                        </div>
+
+                        ${state.loading ? `
+                            <div class="flex justify-center py-12">
+                                <svg class="spinner w-12 h-12 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                        ` : `
+                            <div id="employeeList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                ${filteredEmployees.map(emp => `
+                                    <div onclick="selectEmployee('${emp.id}')" 
+                                        class="p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold text-gray-800">${emp.name}</div>
+                                                <div class="text-sm text-gray-500">SISA CUTI: ${emp.remainingLeave} HARI</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                                ${filteredEmployees.length === 0 ? `
+                                    <div class="col-span-full text-center py-8 text-gray-500">
+                                        TIDAK ADA KARYAWAN DITEMUKAN
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFormPage() {
+            const emp = state.selectedEmployee;
+            const showPersetujuan = state.formData.jabatan === 'ANGGOTA';
+            const showFotoUpload = state.formData.jenisCuti === 'CUTI SAKIT';
+
+            // Durasi untuk tampilan: hitung hari kerja (tanpa Sabtu/Minggu)
+            const duration = calculateDurationWorkdays(state.formData.tanggalMulai, state.formData.tanggalSelesai);
+
+            // MAKSIMAL LAMA PENGAJUAN CUTI (DEFAULT 2 HARI, BISA DIATUR PER KARYAWAN)
+            const maxDays = Math.min(12, Math.max(1, parseInt(emp?.maxLeaveRequestDays ?? 2)));
+
+            return `
+                <div class="max-w-2xl mx-auto p-4 sm:p-8">
+                    <div class="relative overflow-hidden rounded-2xl shadow-xl mb-5">
+                        <div class="absolute inset-0 bg-gradient-to-r from-sky-100 via-blue-100 to-indigo-100"></div>
+                        <div class="absolute -top-20 -right-20 w-72 h-72 bg-white/40 blur-3xl rounded-full"></div>
+                        <div class="absolute -bottom-24 -left-20 w-80 h-80 bg-indigo-200/40 blur-3xl rounded-full"></div>
+                        <div class="relative p-5 sm:p-6">
+                            <div class="bg-white/60 backdrop-blur-md ring-1 ring-white/70 rounded-2xl p-4 sm:p-5">
+                                <div class="flex justify-between items-start gap-3">
+                                    <div class="min-w-0">
+                                        <div class="text-[11px] text-slate-600 font-semibold tracking-wider">FORM</div>
+                                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 leading-tight">PENGAJUAN CUTI</h2>
+                                        <div class="mt-2 flex items-center gap-2 text-xs">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-600 text-white font-bold">1</span>
+                                            <span class="font-semibold text-slate-700">ISI DATA</span>
+                                            <span class="text-slate-400">→</span>
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-bold">2</span>
+                                            <span class="font-semibold text-slate-500">KIRIM</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="goToSelect()" class="p-2 bg-white/80 hover:bg-white rounded-xl shadow-sm ring-1 ring-white/70 transition" aria-label="TUTUP">
+                                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <div class="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                                    <div class="font-extrabold text-indigo-800">KARYAWAN: ${emp.name}</div>
+                                    <div class="text-sm text-indigo-700 font-semibold">SISA CUTI TAHUNAN: ${emp.remainingLeave} HARI</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+                        <form id="leaveForm" class="space-y-5">
+                            <!-- SECTION: DATA CUTI -->
+                            <div class="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
+                                <div class="flex items-center justify-between gap-2 mb-3">
+                                    <div class="text-sm font-extrabold text-slate-800">DATA CUTI</div>
+                                    <div class="text-[11px] text-slate-500">WAJIB DIISI (*)</div>
+                                </div>
+
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">JABATAN *</label>
+                                        <select id="jabatan" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('jabatan', this.value)">
+                                            <option value="">-- PILIH JABATAN --</option>
+                                            <option value="PENGAWAS" ${state.formData.jabatan === 'PENGAWAS' ? 'selected' : ''}>PENGAWAS</option>
+                                            <option value="ANGGOTA" ${state.formData.jabatan === 'ANGGOTA' ? 'selected' : ''}>ANGGOTA</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">UNIT KERJA *</label>
+                                        <select id="unitKerja" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('unitKerja', this.value)">
+                                            <option value="">-- PILIH UNIT KERJA --</option>
+                                            <option value="TENAGA KEBERSIHAN" ${state.formData.unitKerja === 'TENAGA KEBERSIHAN' ? 'selected' : ''}>TENAGA KEBERSIHAN</option>
+                                            <option value="PRAMUSAJI" ${state.formData.unitKerja === 'PRAMUSAJI' ? 'selected' : ''}>PRAMUSAJI</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">JENIS CUTI *</label>
+                                        <select id="jenisCuti" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('jenisCuti', this.value)">
+                                            <option value="">-- PILIH JENIS CUTI --</option>
+                                            <option value="CUTI TAHUNAN" ${state.formData.jenisCuti === 'CUTI TAHUNAN' ? 'selected' : ''}>CUTI TAHUNAN</option>
+                                            <option value="CUTI SAKIT" ${state.formData.jenisCuti === 'CUTI SAKIT' ? 'selected' : ''}>CUTI SAKIT</option>
+                                        </select>
+                                    </div>
+
+                                    ${showFotoUpload ? `
+                                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                            <div class="flex items-center gap-2 text-amber-700">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                </svg>
+                                                <span class="font-semibold">WAJIB MELAMPIRKAN SURAT DOKTER ATAUPUN RAWAT INAP</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">ALASAN CUTI *</label>
+                                        <textarea id="alasan" rows="3" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('alasan', this.value)">${state.formData.alasan}</textarea>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">LAMA PENGAMBILAN CUTI *</label>
+                                        <select id="lamaCuti" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateLamaCuti(this.value)">
+                                            <option value="">-- PILIH DURASI --</option>
+                                            ${Array.from({ length: maxDays }, (_, i) => {
+                                                const n = i + 1;
+                                                return `<option value="${n}" ${state.formData.lamaCuti === String(n) ? 'selected' : ''}>${n} HARI</option>`;
+                                            }).join('')}
+                                        </select>
+                                        <div class="text-xs text-slate-600 font-semibold mt-2">MAKSIMAL ${maxDays} HARI</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECTION: TANGGAL -->
+                            <div class="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
+                                <div class="flex items-center justify-between gap-2 mb-3">
+                                    <div class="text-sm font-extrabold text-slate-800">TANGGAL CUTI</div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">TERHITUNG MULAI TANGGAL *</label>
+                                        <input type="date" id="tanggalMulai" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" value="${state.formData.tanggalMulai}" onchange="updateTanggalMulai(this.value)">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">SAMPAI DENGAN TANGGAL *</label>
+                                        <input type="date" id="tanggalSelesai" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-100" value="${state.formData.tanggalSelesai}" readonly>
+                                    </div>
+                                </div>
+
+
+                                ${duration > 0 ? `
+                                    <div class="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                                        <span class="font-bold text-indigo-700">DURASI PENGAJUAN (HARI KERJA): ${duration} HARI</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- SECTION: KONTAK & PENGGANTI -->
+                            <div class="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
+                                <div class="text-sm font-extrabold text-slate-800 mb-3">KONTAK & PENGGANTI</div>
+
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">ALAMAT SELAMA MENJALANI CUTI *</label>
+                                        <textarea id="alamat" rows="3" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('alamat', this.value)">${state.formData.alamat}</textarea>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">NOMOR TELEPON *</label>
+                                            <input type="tel" id="telepon" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" value="${state.formData.telepon}" onchange="updateFormField('telepon', this.value)" placeholder="628XXXXXXXXXX">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">EMAIL *</label>
+                                            <input type="email" id="email" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" value="${state.formData.email}" onchange="updateFormField('email', this.value)" placeholder="EMAIL@EXAMPLE.COM" style="text-transform: lowercase;">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">SIAPA PETUGAS YANG MENGGANTIKAN ANDA SELAMA ANDA MENJALANI CUTI? *</label>
+                                        <textarea id="petugasPengganti" rows="2" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-gray-50/40" onchange="updateFormField('petugasPengganti', this.value)">${state.formData.petugasPengganti}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECTION: PERSETUJUAN / LAMPIRAN -->
+                            ${(showPersetujuan || showFotoUpload) ? `
+                            <div class="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5">
+                                <div class="text-sm font-extrabold text-slate-800 mb-3">PERSETUJUAN / LAMPIRAN</div>
+
+                                <div class="space-y-4">
+                                    ${showPersetujuan ? `
+                                        <div class="border-2 border-gray-200 rounded-xl p-4 hover:bg-gray-50">
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">PERSETUJUAN PENGAWAS *</label>
+                                            <div class="flex gap-6">
+                                                <label class="flex items-center gap-2 cursor-pointer">
+                                                    <input type="radio" name="persetujuanPengawas" value="YA SUDAH" ${state.formData.persetujuanPengawas === 'YA SUDAH' ? 'checked' : ''} onchange="updateFormField('persetujuanPengawas', this.value)">
+                                                    <span>YA SUDAH</span>
+                                                </label>
+                                                <label class="flex items-center gap-2 cursor-pointer">
+                                                    <input type="radio" name="persetujuanPengawas" value="BELUM" ${state.formData.persetujuanPengawas === 'BELUM' ? 'checked' : ''} onchange="updateFormField('persetujuanPengawas', this.value)">
+                                                    <span>BELUM</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+
+                                    ${showFotoUpload ? `
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">LAMPIRAN SURAT DOKTER/RAWAT INAP *</label>
+                                            <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition bg-gray-50/30">
+                                                <input type="file" id="photoInput" accept="image/*,.pdf,.doc,.docx" capture="environment" class="hidden" onchange="handlePhotoUpload(this)">
+                                                ${state.photoPreview ? `
+                                                    <div class="mb-4">
+                                                        <img src="${state.photoPreview}" class="max-w-full max-h-48 mx-auto rounded-lg shadow">
+                                                    </div>
+                                                    <button type="button" onclick="removePhoto()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">HAPUS FILE</button>
+                                                ` : `
+                                                    <button type="button" onclick="document.getElementById('photoInput').click()" class="flex flex-col items-center justify-center w-full">
+                                                        <svg class="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                        </svg>
+                                                        <span class="text-gray-500">KLIK UNTUK UPLOAD ATAU AMBIL FOTO</span>
+                                                    </button>
+                                                `}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            <button type="submit" class="w-full py-3 bg-indigo-600 text-white font-extrabold rounded-xl shadow hover:bg-indigo-700 transition ${state.loading ? 'opacity-50 cursor-not-allowed' : ''}" ${state.loading ? 'disabled' : ''}>
+                                ${state.loading ? 'MENGAJUKAN...' : 'KIRIM'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderResultPage() {
+            const data = state.submittedData;
+            return `
+                <div class="max-w-2xl mx-auto p-4 sm:p-8">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-gray-800">PENGAJUAN BERHASIL!</h2>
+                            <p class="mt-1 text-gray-600">CUTI ANDA TELAH DIAJUKAN DAN MENUNGGU PERSETUJUAN ADMIN</p>
+
+                            <div class="mt-4 inline-flex flex-col items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                                <div class="text-xs text-gray-500">WAKTU PENGAJUAN</div>
+                                <div class="text-sm font-semibold text-gray-700">${formatDate(new Date())}</div>
+                                <div class="text-sm font-extrabold text-indigo-700">${formatTime(new Date())}</div>
+                            </div>
+
+                            <div class="mt-4 text-sm text-indigo-700 font-semibold">📧 NOTIFIKASI EMAIL TELAH DIKIRIM KE ADMIN</div>
+                        </div>
+
+                        <div class="mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 sm:p-6 text-white">
+                            <div class="text-center">
+                                <div class="text-xs opacity-90">KARYAWAN</div>
+                                <div class="mt-1 text-xl sm:text-2xl font-extrabold tracking-tight">${data.employeeName}</div>
+                            </div>
+
+                            <div class="mt-5 grid grid-cols-2 gap-3 sm:gap-4">
+                                <div class="rounded-xl bg-white/15 ring-1 ring-white/20 p-3 text-center">
+                                    <div class="text-xs opacity-85">TERPAKAI</div>
+                                    <div class="mt-1 text-2xl font-extrabold">${data.terpakai}</div>
+                                    <div class="text-xs opacity-85">HARI</div>
+                                </div>
+                                <div class="rounded-xl bg-white/15 ring-1 ring-white/20 p-3 text-center">
+                                    <div class="text-xs opacity-85">SISA</div>
+                                    <div class="mt-1 text-2xl font-extrabold">${data.sisa}</div>
+                                    <div class="text-xs opacity-85">HARI</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 rounded-2xl border border-gray-200 bg-white">
+                            <div class="px-4 sm:px-5 py-3 border-b border-gray-100">
+                                <div class="text-sm font-extrabold text-gray-800">DETAIL PENGAJUAN</div>
+                            </div>
+
+                            <dl class="px-4 sm:px-5">
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3 border-b border-gray-100">
+                                    <dt class="text-gray-600 whitespace-nowrap">JABATAN</dt>
+                                    <dd class="font-semibold text-gray-900 text-right sm:text-left">${data.jabatan}</dd>
+                                </div>
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3 border-b border-gray-100">
+                                    <dt class="text-gray-600 whitespace-nowrap">UNIT KERJA</dt>
+                                    <dd class="font-semibold text-gray-900 text-right sm:text-left">${data.unitKerja}</dd>
+                                </div>
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3 border-b border-gray-100">
+                                    <dt class="text-gray-600 whitespace-nowrap">JENIS CUTI</dt>
+                                    <dd class="font-semibold text-gray-900 text-right sm:text-left">${data.jenisCuti}</dd>
+                                </div>
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3 border-b border-gray-100">
+                                    <dt class="text-gray-600 whitespace-nowrap">LAMA CUTI</dt>
+                                    <dd class="font-semibold text-gray-900 text-right sm:text-left">${formatLamaCuti(data.lamaCuti)}</dd>
+                                </div>
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3 border-b border-gray-100">
+                                    <dt class="text-gray-600 whitespace-nowrap">TANGGAL</dt>
+                                    <dd class="font-semibold text-gray-900 text-right sm:text-left">${formatDateShort(data.tanggalMulai)} - ${formatDateShort(data.tanggalSelesai)}</dd>
+                                </div>
+                                <div class="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-3 py-3">
+                                    <dt class="text-gray-600 whitespace-nowrap">STATUS</dt>
+                                    <dd class="text-right sm:text-left">
+                                        <span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-full text-xs sm:text-sm font-extrabold">MENUNGGU</span>
+                                    </dd>
+                                </div>
+                            </dl>
+                        </div>
+
+                        <button onclick="goToSelect()" class="mt-6 w-full py-3 bg-indigo-600 text-white font-extrabold rounded-xl shadow hover:bg-indigo-700 transition">
+                            KEMBALI KE HALAMAN UTAMA
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminPage() {
+            const byNewest = (a, b) => {
+                const ta = a && a.tanggalPengajuan ? new Date(a.tanggalPengajuan).getTime() : 0;
+                const tb = b && b.tanggalPengajuan ? new Date(b.tanggalPengajuan).getTime() : 0;
+                if (tb !== ta) return tb - ta;
+                return (b.rowIndex || 0) - (a.rowIndex || 0);
+            };
+
+            const pending = state.leaveRequests.filter(r => r.status === 'MENUNGGU').sort(byNewest);
+            const approved = state.leaveRequests.filter(r => r.status === 'DISETUJUI').sort(byNewest);
+            const rejected = state.leaveRequests.filter(r => r.status === 'DITOLAK').sort(byNewest);
+            
+            let filteredHistory = [...approved, ...rejected].sort(byNewest);
+            if (state.adminFilterDate) {
+                // tanggalPengajuan bisa berupa ISO datetime (yyyy-mm-ddTHH:mm...), jadi ambil 10 char
+                filteredHistory = filteredHistory.filter(r => r.tanggalPengajuan && String(r.tanggalPengajuan).substring(0,10) === state.adminFilterDate);
+            }
+
+            return `
+                <div class="max-w-6xl mx-auto p-4 sm:p-8">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start lg:items-center mb-6">
+                            <div class="flex items-center gap-3 justify-center lg:justify-start">
+                                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                                <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">${(state.adminUsername || 'admin') === 'manager' ? 'PANEL MANAGER' : 'PANEL ADMIN'}</h1>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row items-center lg:items-end justify-center lg:justify-end gap-3">
+                                <div class="text-center sm:text-right text-xs sm:text-sm">
+                                    <div class="font-medium text-gray-700" data-date>${formatDate(state.currentTime)}</div>
+                                    <div class="text-indigo-600 font-bold" data-clock>${formatTime(state.currentTime)}</div>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-center gap-2">
+                                    <button onclick="openSettings()" class="px-3 py-2 bg-amber-500 text-white rounded-lg shadow hover:bg-amber-600 transition text-sm">
+                                        ⚙️ PENGATURAN
+                                    </button>
+                                    <button onclick="logout()" class="px-3 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition text-sm">
+                                        🚪 LOGOUT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="grid grid-cols-3 gap-2 sm:gap-4 mb-8">
+                            <div class="bg-yellow-100 border border-yellow-300 rounded-xl p-2 sm:p-4 text-center">
+                                <div class="text-2xl sm:text-3xl font-bold text-yellow-700">${pending.length}</div>
+                                <div class="text-[11px] sm:text-sm text-yellow-600 whitespace-nowrap">MENUNGGU</div>
+                            </div>
+                            <div class="bg-green-100 border border-green-300 rounded-xl p-2 sm:p-4 text-center">
+                                <div class="text-2xl sm:text-3xl font-bold text-green-700">${approved.length}</div>
+                                <div class="text-[11px] sm:text-sm text-green-600 whitespace-nowrap">DISETUJUI</div>
+                            </div>
+                            <div class="bg-red-100 border border-red-300 rounded-xl p-2 sm:p-4 text-center">
+                                <div class="text-2xl sm:text-3xl font-bold text-red-700">${rejected.length}</div>
+                                <div class="text-[11px] sm:text-sm text-red-600 whitespace-nowrap">DITOLAK</div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Requests -->
+                        <div class="mb-8">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4">PENGAJUAN MENUNGGU PERSETUJUAN</h2>
+                            ${pending.length === 0 ? `
+                                <div class="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">TIDAK ADA PENGAJUAN MENUNGGU</div>
+                            ` : pending.map(req => `
+                                <div class="border-2 border-yellow-300 bg-yellow-50 rounded-xl p-4 mb-4">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                                        <div><span class="text-gray-600">NAMA:</span> <span class="font-semibold">${req.nama}</span></div>
+                                        <div><span class="text-gray-600">JABATAN:</span> <span class="font-semibold">${req.jabatan}</span></div>
+                                        <div><span class="text-gray-600">UNIT KERJA:</span> <span class="font-semibold">${req.unitKerja}</span></div>
+                                        <div><span class="text-gray-600">JENIS CUTI:</span> <span class="font-semibold">${req.jenisCuti}</span></div>
+                                        <div><span class="text-gray-600">TANGGAL CUTI:</span> <span class="font-semibold">${formatDateShort(req.tanggalMulai)} - ${formatDateShort(req.tanggalSelesai)}</span></div>
+                                        <div><span class="text-gray-600">TANGGAL PENGAJUAN:</span> <span class="font-semibold">${formatDateTimeShort(req.tanggalPengajuan)}</span></div>
+                                        <div><span class="text-gray-600">ALASAN:</span> <span class="font-semibold">${req.alasan}</span></div>
+                                        <div><span class="text-gray-600">ALAMAT:</span> <span class="font-semibold">${req.alamat}</span></div>
+                                        <div><span class="text-gray-600">TELEPON:</span> <span class="font-semibold">${req.telepon}</span></div>
+                                        <div><span class="text-gray-600">PENGGANTI:</span> <span class="font-semibold">${req.petugasPengganti}</span></div>
+                                        ${req.persetujuanPengawas ? `<div><span class="text-gray-600">PERSETUJUAN PENGAWAS:</span> <span class="font-semibold">${req.persetujuanPengawas}</span></div>` : ''}
+                                    </div>
+                                    ${req.foto ? `
+                                        <div class="mb-4">
+                                            <img src="${req.foto}" class="max-w-md rounded-lg shadow cursor-pointer" onclick="window.open('${req.foto}', '_blank')">
+                                        </div>
+                                    ` : ''}
+                                    <div class="flex flex-wrap gap-2">
+                                        ${req.supervisorPhone ? `
+                                            <details class="group">
+                                                <summary class="list-none cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                                                    <span>📱 WA PENGAWAS</span>
+                                                    <svg class="w-4 h-4 opacity-90 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                    </svg>
+                                                </summary>
+                                                <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl min-w-[280px]">
+                                                    <div class="text-xs text-blue-700 font-bold mb-2">PILIH TEMPLATE PESAN (RESMI)</div>
+                                                    <div class="text-xs text-slate-600 mb-3">KEPADA: ${getSupervisorNameForRequest(req)} (${req.supervisorPhone})</div>
+                                                    <div class="grid grid-cols-1 gap-2">
+                                                        <a class="px-3 py-2 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 text-sm text-blue-700" target="_blank" href="${buildSupervisorWaLink(req, 1)}">OPS 1: KONFIRMASI PERSETUJUAN</a>
+                                                        <a class="px-3 py-2 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 text-sm text-blue-700" target="_blank" href="${buildSupervisorWaLink(req, 2)}">OPS 2: REMINDER PERSETUJUAN</a>
+                                                        <a class="px-3 py-2 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 text-sm text-blue-700" target="_blank" href="${buildSupervisorWaLink(req, 3)}">OPS 3: URGENT - BUTUH KEPUTUSAN</a>
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        ` : ''}
+                                        <button onclick="handleApproval(${JSON.stringify(req).replace(/"/g, '&quot;')}, 'DISETUJUI')" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                            ✅ SETUJUI
+                                        </button>
+                                        <button onclick="handleApproval(${JSON.stringify(req).replace(/"/g, '&quot;')}, 'DITOLAK')" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                                            ❌ TOLAK
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <!-- History -->
+                        <div>
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                                <h2 class="text-xl font-bold text-gray-800">RIWAYAT PENGAJUAN CUTI</h2>
+                                <div class="flex gap-2">
+                                    <input type="date" id="filterDate" class="px-3 py-2 border-2 border-gray-200 rounded-lg" value="${state.adminFilterDate}" onchange="updateFilterDate(this.value)">
+                                    <button onclick="resetFilter()" class="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">RESET</button>
+                                </div>
+                            </div>
+                            ${filteredHistory.length === 0 ? `
+                                <div class="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">TIDAK ADA RIWAYAT</div>
+                            ` : filteredHistory.map(req => `
+                                <div class="border rounded-lg p-4 mb-2 ${req.status === 'DISETUJUI' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                        <div>
+                                            <span class="font-semibold">${req.nama}</span>
+                                            <span class="text-gray-500 mx-2">|</span>
+                                            <span>${req.jenisCuti}</span>
+                                            <span class="text-gray-500 mx-2">|</span>
+                                            <span>${formatDateShort(req.tanggalMulai)} - ${formatDateShort(req.tanggalSelesai)}</span>
+                                            <span class="text-gray-500 mx-2">|</span>
+                                            <span class="text-gray-600">PENGAJUAN: ${formatDateTimeShort(req.tanggalPengajuan)}</span>
+                                            ${req.tanggalDiproses ? `<span class="text-gray-500 mx-2">|</span><span class="text-gray-600">PROSES: ${formatDateTimeShort(req.tanggalDiproses)}</span>` : ''}
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="px-3 py-1 rounded-full text-sm font-semibold border ${req.status === 'DISETUJUI' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}">
+                                                ${req.status}
+                                            </span>
+                                            ${req.status === 'DISETUJUI' ? `
+                                                <button onclick="printRequest(${req.rowIndex})" class="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
+                                                    🖨️ PRINT
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdminLoginModal() {
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto">
+                    <div class="min-h-[100svh] flex items-start sm:items-center justify-center p-4 pb-28 sm:pb-4">
+                        <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-auto">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">LOGIN PANEL</h2>
+                            <div class="text-xs text-gray-500 mb-4">PILIH PANEL LALU MASUKKAN PASSWORD</div>
+                            <form id="loginForm" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">PILIH PANEL</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" onclick="setLoginRole('admin')" class="px-3 py-2 rounded-lg border-2 ${state.userRole === 'admin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">PANEL ADMIN</button>
+                                        <button type="button" onclick="setLoginRole('manager')" class="px-3 py-2 rounded-lg border-2 ${state.userRole === 'manager' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">PANEL MANAGER</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">PASSWORD</label>
+                                    <div class="relative">
+                                        <input type="password" id="loginPassword" autocomplete="current-password" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10" placeholder="MASUKKAN PASSWORD">
+                                        <button type="button" onclick="togglePasswordVisibility('loginPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex gap-3">
+                                    <button type="button" onclick="closeAdminLogin()" class="flex-1 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">BATAL</button>
+                                    <button type="submit" class="flex-1 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition" id="loginBtn">LOGIN</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSettingsModal() {
+            const isManager = (state.adminUsername || 'admin') === 'manager';
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <div class="flex justify-between items-center mb-6 border-b pb-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-800">⚙️ PENGATURAN</h2>
+                                <div class="text-xs text-gray-500 mt-1">MODE: ${isManager ? 'PANEL MANAGER' : 'PANEL ADMIN'}</div>
+                            </div>
+                            <button onclick="closeSettings()" class="p-2 hover:bg-gray-100 rounded-lg">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="space-y-3">
+                            <button onclick="openChangePassword()" class="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg text-left hover:bg-amber-100 transition">
+                                <div class="font-semibold text-amber-700">🔐 GANTI PASSWORD</div>
+                                <div class="text-sm text-amber-600">UBAH PASSWORD LOGIN ${isManager ? 'MANAGER' : 'ADMIN'}</div>
+                            </button>
+
+                            ${isManager ? '' : `
+                            <button onclick="openEmployeeForm()" class="w-full p-4 bg-green-50 border border-green-200 rounded-lg text-left hover:bg-green-100 transition">
+                                <div class="font-semibold text-green-700">👥 KELOLA KARYAWAN</div>
+                                <div class="text-sm text-green-600">TAMBAH, EDIT, HAPUS KARYAWAN</div>
+                            </button>
+                            `}
+
+                            <button onclick="openWhatsAppSettings()" class="w-full p-4 bg-blue-50 border border-blue-200 rounded-lg text-left hover:bg-blue-100 transition">
+                                <div class="font-semibold text-blue-700">📱 WHATSAPP ADMIN</div>
+                                <div class="text-sm text-blue-600">UBAH NOMOR WHATSAPP ADMIN</div>
+                            </button>
+
+                            <button onclick="openMaintenanceSettings()" class="w-full p-4 bg-purple-50 border border-purple-200 rounded-lg text-left hover:bg-purple-100 transition">
+                                <div class="font-semibold text-purple-700">🔧 WEBSITE AKTIF/NONAKTIF</div>
+                                <div class="text-sm text-purple-600">MODE MAINTENANCE</div>
+                            </button>
+
+                            ${isManager ? '' : `
+                            <button onclick="openKopSettings()" class="w-full p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-left hover:bg-indigo-100 transition">
+                                <div class="font-semibold text-indigo-700">📋 NAMA KOP SURAT</div>
+                                <div class="text-sm text-indigo-600">UBAH NAMA PEJABAT DAN NIP</div>
+                            </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderChangePasswordModal() {
+            const isManager = (state.adminUsername || 'admin') === 'manager';
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">🔐 GANTI PASSWORD</h2>
+                        <form id="changePasswordForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">USERNAME</label>
+                                <input type="text" value="${isManager ? 'MANAGER' : 'ADMIN'}" disabled class="w-full p-3 border-2 border-gray-200 rounded-lg bg-gray-100 opacity-50">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PASSWORD LAMA</label>
+                                <div class="relative">
+                                    <input type="password" id="oldPassword" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10">
+                                    <button type="button" onclick="togglePasswordVisibility('oldPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PASSWORD BARU (MIN 6 KARAKTER)</label>
+                                <div class="relative">
+                                    <input type="password" id="newPassword" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10">
+                                    <button type="button" onclick="togglePasswordVisibility('newPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">KONFIRMASI PASSWORD BARU</label>
+                                <div class="relative">
+                                    <input type="password" id="confirmPassword" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10">
+                                    <button type="button" onclick="togglePasswordVisibility('confirmPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button type="button" onclick="closeChangePassword()" class="flex-1 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">BATAL</button>
+                                <button type="submit" class="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">SIMPAN PASSWORD</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderEmployeeModal() {
+            const filteredEmps = state.employees.filter(emp =>
+                emp.name.toUpperCase().includes(state.employeeSearchTerm.toUpperCase()) ||
+                emp.id.toUpperCase().includes(state.employeeSearchTerm.toUpperCase())
+            );
+
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                            <h2 class="text-2xl font-bold text-gray-800">👥 KELOLA KARYAWAN</h2>
+                            <button onclick="closeEmployeeForm()" class="p-2 hover:bg-gray-100 rounded-lg">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- Form -->
+                            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+                                <h3 class="font-bold text-indigo-700 mb-4">${state.editingEmployee ? 'EDIT KARYAWAN' : 'TAMBAH KARYAWAN BARU'}</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">ID KARYAWAN (NIP/NIK) *</label>
+                                        <input type="text" id="empId" class="w-full p-2 border-2 border-gray-200 rounded-lg ${state.editingEmployee ? 'bg-gray-100 opacity-50' : ''}" value="${state.employeeFormData.id}" ${state.editingEmployee ? 'disabled' : ''}>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">NAMA KARYAWAN *</label>
+                                        <input type="text" id="empName" class="w-full p-2 border-2 border-gray-200 rounded-lg" value="${state.employeeFormData.name}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">CUTI TERPAKAI (0-12 HARI) *</label>
+                                        <input type="number" id="empUsedLeave" class="w-full p-2 border-2 border-gray-200 rounded-lg" min="0" max="12" value="${state.employeeFormData.usedLeave}">
+                                        <p class="text-xs text-gray-500 mt-1">MASUKKAN JUMLAH CUTI YANG SUDAH TERPAKAI (0-12)</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">MAKSIMAL LAMA PENGAJUAN CUTI (1-12 HARI)</label>
+                                        <input type="number" id="empMaxLeaveDays" class="w-full p-2 border-2 border-gray-200 rounded-lg" min="1" max="12" value="${state.employeeFormData.maxLeaveRequestDays ?? 2}">
+                                        <p class="text-xs text-gray-500 mt-1">DEFAULT 2 HARI. BISA DIATUR PER KARYAWAN (MAKS 12)</p>
+                                        <p class="text-xs text-gray-500">CATATAN: INI SEKALI PAKAI. SETELAH KARYAWAN SUBMIT, AKAN KEMBALI KE 2 HARI</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">NAMA PENGAWAS</label>
+                                        <input type="text" id="empSupervisorName" class="w-full p-2 border-2 border-gray-200 rounded-lg" value="${state.employeeFormData.supervisorName}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">SAPAAN PENGAWAS</label>
+                                        <select id="empSupervisorSalutation" class="w-full p-2 border-2 border-gray-200 rounded-lg">
+                                            <option value="" ${!state.employeeFormData.supervisorSalutation ? 'selected' : ''}>-- PILIH SAPAAN --</option>
+                                            <option value="BAPAK" ${state.employeeFormData.supervisorSalutation === 'BAPAK' ? 'selected' : ''}>BAPAK</option>
+                                            <option value="IBU" ${state.employeeFormData.supervisorSalutation === 'IBU' ? 'selected' : ''}>IBU</option>
+                                        </select>
+                                        <p class="text-xs text-gray-500 mt-1">DIGUNAKAN UNTUK TEMPLATE WA (AGAR TIDAK RANCU)</p>
+                                    </div>
+                                    <div class="sm:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">NO. WA PENGAWAS</label>
+                                        <input type="text" id="empSupervisor" class="w-full p-2 border-2 border-gray-200 rounded-lg" value="${state.employeeFormData.supervisorPhone}" placeholder="628123456789">
+                                        <p class="text-xs text-gray-500 mt-1">FORMAT: 628XXXXXXXXXX (TANPA +)</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 mt-4">
+                                    <button onclick="cancelEmployeeEdit()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">BATAL</button>
+                                    <button onclick="handleSaveEmployee()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">${state.editingEmployee ? 'UPDATE' : 'TAMBAH'}</button>
+                                </div>
+                            </div>
+
+                            <!-- Employee List -->
+                            <div>
+                                <h3 class="font-bold text-gray-800 mb-4">DAFTAR KARYAWAN (${state.employees.length})</h3>
+                                <div class="relative mb-4">
+                                    <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <input type="text" id="empSearchInput" placeholder="CARI KARYAWAN..." class="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg" value="${state.employeeSearchTerm}" oninput="updateEmployeeSearchTerm(this.value)">
+                                </div>
+                                <div id="employeeModalList" class="space-y-2 max-h-60 overflow-y-auto">
+                                    ${filteredEmps.map(emp => `
+                                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <div class="font-semibold text-gray-800">${emp.name}</div>
+                                                    <div class="text-sm text-gray-500">ID: ${emp.id}</div>
+                                                    <div class="text-sm text-gray-500">TERPAKAI: ${emp.usedLeave || 0} HARI | SISA: ${emp.remainingLeave} HARI</div>
+                                                    ${emp.supervisorName ? `<div class="text-sm text-gray-500">👤 PENGAWAS: ${emp.supervisorName}</div>` : ''}
+                                                    ${emp.supervisorPhone ? `<div class="text-sm text-gray-500">📱 WA PENGAWAS: ${emp.supervisorPhone}</div>` : ''}
+                                                </div>
+                                                <div class="flex gap-2">
+                                                    <button onclick='handleEditEmployee(${JSON.stringify(emp).replace(/'/g, "\\'")})' class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">EDIT</button>
+                                                    <button onclick="handleDeleteEmployee('${emp.id}')" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">HAPUS</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderWhatsAppModal() {
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">📱 WHATSAPP ADMIN</h2>
+                        <form id="waForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">NOMOR WHATSAPP ADMIN</label>
+                                <input type="text" id="adminWa" class="w-full p-3 border-2 border-gray-200 rounded-lg" value="${state.settings.adminWa}" placeholder="628123456789">
+                                <p class="text-xs text-gray-500 mt-1">FORMAT: 628XXXXXXXXXX (TANPA +)</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PASSWORD (KONFIRMASI)</label>
+                                <div class="relative">
+                                    <input type="password" id="waPassword" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg pr-10">
+                                    <button type="button" onclick="togglePasswordVisibility('waPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button type="button" onclick="closeWhatsAppSettings()" class="flex-1 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">BATAL</button>
+                                <button type="submit" class="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">SIMPAN</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderKopModal() {
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 NAMA KOP SURAT</h2>
+                        <form id="kopForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">NAMA PEJABAT</label>
+                                <input type="text" id="kopName" class="w-full p-3 border-2 border-gray-200 rounded-lg" value="${state.settings.kopMengetahuiName}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">NIP</label>
+                                <input type="text" id="kopNip" class="w-full p-3 border-2 border-gray-200 rounded-lg" value="${state.settings.kopMengetahuiNip}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">PASSWORD (KONFIRMASI)</label>
+                                <div class="relative">
+                                    <input type="password" id="kopPassword" class="password-field w-full p-3 border-2 border-gray-200 rounded-lg pr-10">
+                                    <button type="button" onclick="togglePasswordVisibility('kopPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button type="button" onclick="closeKopSettings()" class="flex-1 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">BATAL</button>
+                                <button type="submit" class="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">SIMPAN</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMaintenanceModal() {
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">🔧 MODE MAINTENANCE</h2>
+                        <div class="space-y-4">
+                            <div class="p-4 rounded-lg ${state.settings.websiteActive ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
+                                <div class="font-semibold ${state.settings.websiteActive ? 'text-green-700' : 'text-red-700'}">
+                                    STATUS: ${state.settings.websiteActive ? 'WEBSITE AKTIF' : 'WEBSITE NONAKTIF (MAINTENANCE)'}
+                                </div>
+                            </div>
+                            <button onclick="toggleMaintenance()" class="w-full py-3 ${state.settings.websiteActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg transition">
+                                ${state.settings.websiteActive ? 'NONAKTIFKAN WEBSITE' : 'AKTIFKAN WEBSITE'}
+                            </button>
+                            <button onclick="closeMaintenanceSettings()" class="w-full py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">TUTUP</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStatusCheckModal() {
+            const term = (state.statusEmployeeSearchTerm || '').toUpperCase();
+            const filtered = state.employees
+                .filter(emp => emp.name.toUpperCase().includes(term) || emp.id.toUpperCase().includes(term))
+                .slice(0, 25);
+
+            const selectedEmp = state.employees.find(e => e.id === state.statusCheckId);
+
+            return `
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto">
+                    <div class="min-h-[100svh] flex items-start sm:items-center justify-center p-4 pb-28 sm:pb-4">
+                        <div data-status-modal class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-auto max-h-[90svh] overflow-y-auto" style="-webkit-overflow-scrolling: touch;">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-xl sm:text-2xl font-bold text-gray-800">📋 CEK STATUS PENGAJUAN</h2>
+                                <button onclick="closeStatusCheck()" class="p-2 hover:bg-gray-100 rounded-lg">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">CARI NAMA KARYAWAN</label>
+                                    <div class="relative">
+                                        <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                        <input type="text" id="statusEmployeeSearch" class="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg" value="${state.statusEmployeeSearchTerm || ''}" placeholder="CARI NAMA KARYAWAN..." oninput="updateStatusEmployeeSearch(this.value)">
+                                    </div>
+                                    <div id="statusEmployeeList" class="mt-2 border border-gray-200 rounded-lg max-h-56 overflow-y-auto" style="-webkit-overflow-scrolling: touch;">
+                                        ${filtered.length === 0 ? `
+                                            <div class="p-3 text-sm text-gray-500">TIDAK ADA KARYAWAN DITEMUKAN</div>
+                                        ` : filtered.map(emp => `
+                                            <button type="button" onclick="selectStatusEmployee('${emp.id}')" class="w-full text-left p-3 hover:bg-indigo-50 transition border-b last:border-b-0 border-gray-100">
+                                                <div class="font-semibold text-gray-800">${emp.name}</div>
+                                                <div class="text-xs text-gray-500">ID: ${emp.id}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+
+                                ${selectedEmp ? `
+                                    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                                        <div class="text-sm text-gray-600">KARYAWAN TERPILIH</div>
+                                        <div class="font-bold text-indigo-700">${selectedEmp.name}</div>
+                                    </div>
+                                ` : ''}
+
+                                <button onclick="checkStatus()" class="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition ${state.loading ? 'opacity-50' : ''}">
+                                    ${state.loading ? 'MENCARI...' : 'CEK STATUS'}
+                                </button>
+                                
+                                ${state.statusCheckResult ? `
+                                    <div class="border-t pt-4 mt-4">
+                                        <h3 class="font-bold text-gray-800 mb-3">HASIL PENCARIAN:</h3>
+                                        ${state.statusCheckResult.length === 0 ? `
+                                            <div class="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">TIDAK ADA PENGAJUAN DITEMUKAN</div>
+                                        ` : `
+                                            <div class="max-h-72 overflow-y-auto pr-1" style="-webkit-overflow-scrolling: touch;">
+                                                ${state.statusCheckResult.map(req => `
+                                                    <div class="border rounded-lg p-3 mb-2 ${req.status === 'MENUNGGU' ? 'bg-yellow-50 border-yellow-200' : req.status === 'DISETUJUI' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+                                                        <div class="text-sm text-gray-600">${req.jenisCuti}</div>
+                                                        <div class="font-semibold">${formatDateShort(req.tanggalMulai)} - ${formatDateShort(req.tanggalSelesai)}</div>
+                                                        <span class="inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold border ${req.status === 'MENUNGGU' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' : req.status === 'DISETUJUI' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}">
+                                                            ${req.status}
+                                                        </span>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        `}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMaintenancePage() {
+            return `
+                <div class="min-h-screen flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
+                        <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg class="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800 mb-4">WEBSITE SEDANG MAINTENANCE</h1>
+                        <p class="text-gray-600 mb-6">MOHON MAAF, SISTEM SEDANG DALAM PERBAIKAN. SILAKAN COBA BEBERAPA SAAT LAGI.</p>
+                        <button onclick="openAdminLogin()" class="px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition">
+                            LOGIN ADMIN
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderPrintPage(id) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen">
+                    <svg class="spinner w-12 h-12 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            `;
+
+            try {
+                const result = await apiGet('getLeaveRequestById', { id: id });
+                if (result.success && result.data) {
+                    displayPrintDocument(result.data);
+                } else {
+                    app.innerHTML = `
+                        <div class="flex items-center justify-center min-h-screen">
+                            <div class="text-center">
+                                <div class="text-6xl mb-4">❌</div>
+                                <h1 class="text-2xl font-bold text-gray-800">DATA TIDAK DITEMUKAN</h1>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                app.innerHTML = `
+                    <div class="flex items-center justify-center min-h-screen">
+                        <div class="text-center">
+                            <div class="text-6xl mb-4">❌</div>
+                            <h1 class="text-2xl font-bold text-gray-800">GAGAL MEMUAT DATA</h1>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function applyPrintPreviewScale() {
+            const viewport = document.getElementById('printViewport');
+            const area = document.getElementById('printArea');
+            if (!viewport || !area) return;
+
+            // Aktifkan mode softcopy
+            document.body.classList.add('print-preview');
+
+            // Ukur ukuran asli (tanpa terpengaruh transform)
+            const baseWidth = area.offsetWidth || 794;
+            const baseHeight = area.offsetHeight || 1123;
+
+            const padding = 24; // ruang kiri-kanan
+            const vw = Math.max(320, window.innerWidth || 360);
+            const scale = Math.min(1, (vw - padding) / baseWidth);
+
+            area.style.transformOrigin = 'top center';
+            area.style.transform = `scale(${scale})`;
+
+            // Viewport wrapper
+            viewport.style.display = 'flex';
+            viewport.style.justifyContent = 'center';
+            viewport.style.padding = '12px';
+            viewport.style.overflowX = 'hidden';
+
+            // Tinggi wrapper menyesuaikan hasil scale (agar tidak terpotong)
+            viewport.style.minHeight = Math.ceil((baseHeight * scale) + 24) + 'px';
+        }
+
+        function displayPrintDocument(data) {
+            const app = document.getElementById('app');
+
+            // Buat URL verifikasi yang stabil untuk hasil scan QR.
+            // Prioritas:
+            // 1) CONFIG.PUBLIC_BASE_URL (jika website Anda punya domain publik)
+            // 2) window.location.origin + window.location.pathname
+            // Catatan: jika dibuka via file://, window.location.origin bisa "null" -> WAJIB isi PUBLIC_BASE_URL.
+            const defaultBase = (window.location.origin && window.location.origin !== 'null')
+                ? (window.location.origin + window.location.pathname)
+                : (window.location.href.split('?')[0].split('#')[0]);
+
+            let baseUrl = (CONFIG.PUBLIC_BASE_URL && String(CONFIG.PUBLIC_BASE_URL).trim())
+                ? String(CONFIG.PUBLIC_BASE_URL).trim().split('?')[0].split('#')[0]
+                : defaultBase;
+
+            // Normalisasi agar tidak dobel "?"/"/" dan aman ditambah query
+            baseUrl = baseUrl.replace(/\/+$/, '/');
+
+            // MODE UI:
+            // - HASIL SCAN QR: hanya softcopy (tanpa tombol PRINT/KEMBALI dan tanpa link)
+            // - ADMIN klik dari panel: pakai ui=1 untuk menampilkan tombol
+            const urlParams = new URLSearchParams(window.location.search);
+            const showUi = urlParams.get('ui') === '1';
+
+            // Pakai shortlink agar QR offline selalu muat dan tidak error
+            const verifyUrl = `${baseUrl}?p=${data.rowIndex}`;
+            const qrElementId = `qrBox-${data.rowIndex}`;
+
+            app.innerHTML = `
+                <div id="printViewport">
+                <div id="printArea" class="mx-auto bg-white" style="width: 210mm; max-width: 210mm; font-family: 'Times New Roman', serif; text-transform: none;">
+                    <!-- KOP SURAT (RESMI: LOGO KIRI, TEKS RATA TENGAH) -->
+                    <div style="border-bottom: 3px solid #000; padding-bottom: 0; margin-bottom: 0;">
+                        <div style="display:grid; grid-template-columns: 110px 1fr 90px; align-items:center; column-gap: 10px;">
+                            <div style="display:flex; align-items:center; justify-content:flex-start;">
+                                <!-- BUNGKUS PERSEGI (TANPA GARIS) UNTUK MENJAGA RATA TENGAH KOP -->
+                                <div style="width:100px; height:100px; border:0; display:flex; align-items:center; justify-content:center; box-sizing:border-box; background:#fff;">
+                                    <img src="${CONFIG.KEMENKEU_LOGO}" alt="Logo Kemenkeu" style="height: 95px !important; width: auto; display:block;" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                                </div>
+                            </div>
+                            <div style="text-align:center; line-height: 1.12; padding-left: 6px;">
+                                <div style="font-size: 18px; font-weight: 800;">KEMENTERIAN KEUANGAN REPUBLIK INDONESIA</div>
+                                <div style="font-size: 18px; font-weight: 800;">DIREKTORAT JENDERAL BEA DAN CUKAI</div>
+                                <div style="font-size: 17px; font-weight: 800;">KANTOR PELAYANAN UTAMA BEA DAN CUKAI TIPE A</div>
+                                <div style="font-size: 18px; font-weight: 800;">TANJUNG PRIOK</div>
+                                <div style="font-size: 11px; margin-top: 2px;">JALAN PABEAN NO. 01 TANJUNG PRIOK, JAKARTA UTARA</div>
+                                <div style="font-size: 11px;">TELEPON (021) 4301249; FAKSIMILE (021) 43931827</div>
+                            </div>
+                            <div></div>
+                        </div>
+                    </div>
+
+                    <!-- JUDUL -->
+                    <div class="text-center" style="margin-top: 0; margin-bottom: 10px;">
+                        <div style="font-size: 16px; font-weight: 700; text-decoration: underline;">SURAT IZIN CUTI</div>
+                    </div>
+
+                    <!-- ISI SURAT -->
+                    <div style="margin-bottom: 12px; line-height: 1.35; text-align: justify; font-size: 12.5px;">
+                        <p style="margin-bottom: 10px;">Yang bertanda tangan di bawah ini, memberikan izin cuti kepada:</p>
+                        
+                        <table style="margin: 0 0 10px 18px; font-size: 12.5px; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 2px 10px 2px 0; width: 150px;">Nama</td>
+                                <td style="padding: 2px 8px 2px 0; width: 10px;">:</td>
+                                <td style="padding: 2px 0; font-weight: 700;">${data.nama}</td>
+                            </tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">ID Absensi</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.id}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Jabatan</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.jabatan}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Unit Kerja</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.unitKerja}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Jenis Cuti</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.jenisCuti}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Alasan</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.alasan}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Lama Cuti</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${formatLamaCuti(data.lamaCuti)}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Tanggal Cuti</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${formatDateShort(data.tanggalMulai)} s.d. ${formatDateShort(data.tanggalSelesai)}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Masuk Kerja</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${formatDateShort(addDaysDateOnly(data.tanggalSelesai, 1))}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Alamat Selama Cuti</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.alamat}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">No. Telepon</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.telepon}</td></tr>
+                            <tr><td style="padding: 2px 10px 2px 0; width: 150px;">Petugas Pengganti</td><td style="padding: 2px 8px 2px 0; width: 10px;">:</td><td style="padding: 2px 0;">${data.petugasPengganti}</td></tr>
+                        </table>
+
+                        <p>Demikian surat izin cuti ini dibuat untuk dapat dipergunakan sebagaimana mestinya.</p>
+                    </div>
+
+                    <!-- TANDA TANGAN (KANAN) DENGAN QR VERIFIKASI DI TENGAH (HANYA GAMBAR) -->
+                    <div style="display:flex; justify-content:flex-end; margin-top: 0;">
+                        <div style="width: 320px; text-align: center; text-transform: none; font-size: 12.5px;">
+                            <div style="margin: 0;">MENGETAHUI</div>
+                            <div style="font-weight: 700; margin: 0;">KOORDINATOR TENAGA KEBERSIHAN</div>
+
+                            <!-- QR VERIFIKASI (GAMBAR) + LOGO KEMENKEU DI TENGAH (JARAK ATAS/BAWAH TETAP) -->
+                            <div style="width: 34mm; height: 34mm; position: relative; margin: 6px auto 6px;">
+                                <div id="${qrElementId}" style="width:34mm; height:34mm; display:flex; align-items:center; justify-content:center; cursor:pointer;"></div>
+                                <!-- Overlay logo: 14px + border lingkaran sempurna (rapi & tetap mudah discan) -->
+                                <div data-qr-overlay style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
+                                    <!-- white pad untuk menjaga kontras QR di area tengah -->
+                                    <div style="width:38px; height:38px; background:#fff; border-radius:999px; display:flex; align-items:center; justify-content:center;">
+                                        <div style="width:34px; height:34px; background:#fff; border:1px solid #111; border-radius:999px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                                            <img src="${CONFIG.LOGO_URL}" alt="LOGO" style="width:30px; height:30px; display:block;" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="font-weight:700; margin: 0;">${state.settings.kopMengetahuiName || 'NAMA PEJABAT'}</div>
+                            <div style="margin: 0;">NIP. ${state.settings.kopMengetahuiNip || '-'}</div>
+                            <div style="font-size: 11px; margin: 0;">DISETUJUI PADA TANGGAL: ${formatDateTimeShort(data.tanggalDiproses || new Date().toISOString())}</div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                ${showUi ? `
+                <div class="no-print fixed bottom-4 left-4 text-xs text-slate-600 bg-white/80 backdrop-blur px-3 py-2 rounded-lg shadow" style="text-transform:none;">
+                    <div style="font-weight:700;">LINK QR:</div>
+                    <div style="max-width: 70vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" data-verify-url>${verifyUrl}</div>
+                </div>
+
+                <div class="no-print fixed bottom-4 right-4 flex gap-2">
+                    <button onclick="window.print()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 transition">
+                        🖨️ PRINT
+                    </button>
+                    <button onclick="window.location.href='${window.location.pathname}'" class="px-6 py-3 bg-gray-600 text-white rounded-lg shadow-lg hover:bg-gray-700 transition">
+                        KEMBALI
+                    </button>
+                </div>
+                ` : ''}
+            `;
+
+            // Render QR setelah layout siap (agar ukuran & posisi rapi)
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    renderQrToElement(qrElementId, verifyUrl);
+
+                    // Klik QR (hanya untuk tes di layar; tidak mempengaruhi hasil print)
+                    // Khusus admin (ui=1) agar softcopy hasil scan tetap bersih.
+                    const qrHost = document.getElementById(qrElementId);
+                    if (qrHost && showUi) {
+                        qrHost.style.cursor = 'pointer';
+                        qrHost.onclick = () => {
+                            // Buka QR resolusi besar untuk tes (tanpa mempengaruhi hasil print)
+                            const testUrl = `https://api.qrserver.com/v1/create-qr-code/?size=900x900&ecc=H&margin=4&data=${encodeURIComponent(String(verifyUrl))}`;
+                            window.open(testUrl, '_blank');
+                        };
+                    } else if (qrHost) {
+                        qrHost.style.cursor = 'default';
+                    }
+
+                    // Softcopy HP: fit to screen
+                    applyPrintPreviewScale();
+
+                    // Update scale saat rotate/resize
+                    window.addEventListener('resize', applyPrintPreviewScale, { passive: true });
+                    window.addEventListener('orientationchange', applyPrintPreviewScale, { passive: true });
+                });
+            });
+        }
+
+        // ==================== EVENT HANDLERS ====================
+        function attachEventListeners() {
+            // Login form
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                // Fix HP: saat fokus input, scroll modal agar tidak ketutup keyboard
+                const pwd = document.getElementById('loginPassword');
+                if (pwd) {
+                    const scrollInto = () => {
+                        // timeout kecil agar keyboard sempat muncul
+                        setTimeout(() => {
+                            try {
+                                pwd.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } catch (e) {
+                                // fallback
+                                pwd.scrollIntoView(true);
+                            }
+                        }, 250);
+                    };
+                    pwd.addEventListener('focus', scrollInto);
+                    pwd.addEventListener('click', scrollInto);
+                }
+
+                loginForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const password = document.getElementById('loginPassword').value;
+                    const role = state.userRole || 'admin';
+                    const username = role === 'manager' ? 'manager' : 'admin';
+
+                    document.getElementById('loginBtn').textContent = 'MEMVERIFIKASI...';
+                    
+                    try {
+                        const result = await apiGet('verifyAdmin', { username, password });
+                        if (result.success) {
+                            state.isAdminLoggedIn = true;
+                            state.adminUsername = username;
+                            state.showAdminLogin = false;
+                            state.page = 'admin';
+                            await loadLeaveRequests();
+                            startAutoRefresh();
+                        } else {
+                            alert('PASSWORD SALAH!');
+                        }
+                    } catch (error) {
+                        alert('GAGAL LOGIN!');
+                    }
+                    render();
+                };
+            }
+
+            // Leave form
+            const leaveForm = document.getElementById('leaveForm');
+            if (leaveForm) {
+                leaveForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    if (validateForm()) {
+                        submitLeaveRequest();
+                    }
+                };
+            }
+
+            // Change password form
+            const changePasswordForm = document.getElementById('changePasswordForm');
+            if (changePasswordForm) {
+                changePasswordForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const oldPwd = document.getElementById('oldPassword').value;
+                    const newPwd = document.getElementById('newPassword').value;
+                    const confirmPwd = document.getElementById('confirmPassword').value;
+
+                    const isManager = (state.adminUsername || 'admin') === 'manager';
+                    const action = isManager ? 'changePasswordManager' : 'changePasswordAdmin';
+                    
+                    if (newPwd.length < 6) {
+                        alert('PASSWORD BARU MINIMAL 6 KARAKTER!');
+                        return;
+                    }
+                    if (newPwd !== confirmPwd) {
+                        alert('KONFIRMASI PASSWORD TIDAK COCOK!');
+                        return;
+                    }
+                    
+                    try {
+                        const result = await apiCall(action, { oldPassword: oldPwd, newPassword: newPwd });
+                        if (!result || result.success === false) {
+                            alert((result && result.error) ? result.error : 'GAGAL MENGUBAH PASSWORD!');
+                            return;
+                        }
+                        alert('PASSWORD BERHASIL DIUBAH!');
+                        closeChangePassword();
+                    } catch (error) {
+                        alert('GAGAL MENGUBAH PASSWORD!');
+                    }
+                };
+            }
+
+            // WhatsApp form
+            const waForm = document.getElementById('waForm');
+            if (waForm) {
+                waForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const wa = document.getElementById('adminWa').value;
+                    const pwd = document.getElementById('waPassword').value;
+                    
+                    try {
+                        const currentUser = (state.adminUsername || 'admin');
+                        const verify = await apiGet('verifyAdmin', { username: currentUser, password: pwd });
+                        if (!verify.success) {
+                            alert('PASSWORD SALAH!');
+                            return;
+                        }
+                        
+                        const saved = await apiCall('updateSettings', { adminWa: wa });
+                        if (!saved || saved.success === false) {
+                            alert((saved && saved.error) ? saved.error : 'GAGAL MENYIMPAN!');
+                            return;
+                        }
+                        state.settings.adminWa = wa;
+                        alert('NOMOR WHATSAPP BERHASIL DIUBAH!');
+                        closeWhatsAppSettings();
+                    } catch (error) {
+                        alert('GAGAL MENYIMPAN!');
+                    }
+                };
+            }
+
+            // Kop form
+            const kopForm = document.getElementById('kopForm');
+            if (kopForm) {
+                kopForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('kopName').value;
+                    const nip = document.getElementById('kopNip').value;
+                    const pwd = document.getElementById('kopPassword').value;
+                    
+                    try {
+                        const currentUser = (state.adminUsername || 'admin');
+                        const verify = await apiGet('verifyAdmin', { username: currentUser, password: pwd });
+                        if (!verify.success) {
+                            alert('PASSWORD SALAH!');
+                            return;
+                        }
+                        
+                        const saved = await apiCall('updateSettings', { kopMengetahuiName: name, kopMengetahuiNip: nip });
+                        if (!saved || saved.success === false) {
+                            alert((saved && saved.error) ? saved.error : 'GAGAL MENYIMPAN!');
+                            return;
+                        }
+                        state.settings.kopMengetahuiName = name;
+                        state.settings.kopMengetahuiNip = nip;
+                        alert('DATA KOP SURAT BERHASIL DIUBAH!');
+                        closeKopSettings();
+                    } catch (error) {
+                        alert('GAGAL MENYIMPAN!');
+                    }
+                };
+            }
+
+            // Status check: saat fokus input search, scroll agar tidak ketutup keyboard
+            const statusSearch = document.getElementById('statusEmployeeSearch');
+            if (statusSearch) {
+                const scrollInto = () => {
+                    setTimeout(() => {
+                        try {
+                            statusSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } catch (e) {
+                            statusSearch.scrollIntoView(true);
+                        }
+                    }, 250);
+                };
+                statusSearch.addEventListener('focus', scrollInto);
+                statusSearch.addEventListener('click', scrollInto);
+            }
+        }
+
+        function validateForm() {
+            const required = ['jabatan', 'unitKerja', 'jenisCuti', 'alasan', 'lamaCuti', 'tanggalMulai', 'alamat', 'telepon', 'email', 'petugasPengganti'];
+            
+            for (const field of required) {
+                if (!state.formData[field]) {
+                    alert(`HARAP ISI SEMUA FIELD YANG WAJIB!`);
+                    return false;
+                }
+            }
+
+            if (state.formData.jabatan === 'ANGGOTA' && !state.formData.persetujuanPengawas) {
+                alert('HARAP ISI PERSETUJUAN PENGAWAS!');
+                return false;
+            }
+
+            if (state.formData.jenisCuti === 'CUTI SAKIT' && !state.photoPreview) {
+                alert('HARAP UPLOAD LAMPIRAN SURAT DOKTER!');
+                return false;
+            }
+
+            const duration = calculateDurationWorkdays(state.formData.tanggalMulai, state.formData.tanggalSelesai);
+
+            // Validasi maksimal lama pengajuan per karyawan (hari kerja)
+            const maxDays = Math.min(12, Math.max(1, parseInt(state.selectedEmployee?.maxLeaveRequestDays ?? 2)));
+            if (duration > maxDays) {
+                alert(`MAKSIMAL LAMA PENGAJUAN UNTUK ANDA ADALAH ${maxDays} HARI!`);
+                return false;
+            }
+
+            // Validasi sisa cuti tahunan berdasarkan hari kerja
+            if (state.formData.jenisCuti === 'CUTI TAHUNAN' && duration > state.selectedEmployee.remainingLeave) {
+                alert('SISA CUTI TIDAK MENCUKUPI!');
+                return false;
+            }
+
+            return true;
+        }
+
+        // ==================== GLOBAL FUNCTIONS ====================
+        let _searchDebounceTimer = null;
+        window.updateSearchTerm = function(value) {
+            state.searchTerm = value;
+            if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
+            _searchDebounceTimer = setTimeout(() => updateEmployeeList(), 40);
+        };
+
+        function updateEmployeeList() {
+            const list = document.getElementById('employeeList');
+            if (!list) return;
+            
+            const filtered = state.employees.filter(emp => 
+                emp.name.toUpperCase().includes(state.searchTerm.toUpperCase()) ||
+                emp.id.toUpperCase().includes(state.searchTerm.toUpperCase())
+            );
+            
+            list.innerHTML = filtered.map(emp => `
+                <div onclick="selectEmployee('${emp.id}')" 
+                    class="p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-gray-800">${emp.name}</div>
+                            <div class="text-sm text-gray-500">SISA CUTI: ${emp.remainingLeave} HARI</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('') + (filtered.length === 0 ? `<div class="col-span-full text-center py-8 text-gray-500">TIDAK ADA KARYAWAN DITEMUKAN</div>` : '');
+        }
+
+        let _empSearchDebounceTimer = null;
+        window.updateEmployeeSearchTerm = function(value) {
+            state.employeeSearchTerm = value;
+            if (_empSearchDebounceTimer) clearTimeout(_empSearchDebounceTimer);
+            _empSearchDebounceTimer = setTimeout(() => updateModalEmployeeList(), 40);
+        };
+
+        // ===== CEK STATUS (BERDASARKAN NAMA KARYAWAN) =====
+        let _statusSearchDebounceTimer = null;
+        window.updateStatusEmployeeSearch = function(value) {
+            state.statusEmployeeSearchTerm = value;
+            if (_statusSearchDebounceTimer) clearTimeout(_statusSearchDebounceTimer);
+            _statusSearchDebounceTimer = setTimeout(() => updateStatusEmployeeList(), 40);
+        };
+
+        window.selectStatusEmployee = function(id) {
+            state.statusCheckId = id;
+            // reset hasil lama
+            state.statusCheckResult = null;
+            // update tampilan info terpilih + biarkan input tetap
+            render();
+            // scroll ke atas modal agar hasil tidak "nyangkut" di bawah
+            setTimeout(() => {
+                try {
+                    const modal = document.querySelector('[data-status-modal]');
+                    if (modal) modal.scrollTop = 0;
+                } catch (e) {
+                    // ignore
+                }
+                const el = document.getElementById('statusEmployeeSearch');
+                if (el) el.focus();
+            }, 80);
+        };
+
+        function updateStatusEmployeeList() {
+            const container = document.querySelector('#statusEmployeeList');
+            if (!container) return;
+
+            const term = (state.statusEmployeeSearchTerm || '').toUpperCase();
+            const filtered = state.employees
+                .filter(emp => emp.name.toUpperCase().includes(term) || emp.id.toUpperCase().includes(term))
+                .slice(0, 25);
+
+            container.innerHTML = filtered.length === 0
+                ? `<div class="p-3 text-sm text-gray-500">TIDAK ADA KARYAWAN DITEMUKAN</div>`
+                : filtered.map(emp => `
+                    <button type="button" onclick="selectStatusEmployee('${emp.id}')" class="w-full text-left p-3 hover:bg-indigo-50 transition border-b last:border-b-0 border-gray-100">
+                        <div class="font-semibold text-gray-800">${emp.name}</div>
+                        <div class="text-xs text-gray-500">ID: ${emp.id}</div>
+                    </button>
+                `).join('');
+        }
+
+        function updateModalEmployeeList() {
+            const list = document.getElementById('employeeModalList');
+            if (!list) return;
+            
+            const filtered = state.employees.filter(emp =>
+                emp.name.toUpperCase().includes(state.employeeSearchTerm.toUpperCase()) ||
+                emp.id.toUpperCase().includes(state.employeeSearchTerm.toUpperCase())
+            );
+            
+            list.innerHTML = filtered.map(emp => `
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-semibold text-gray-800">${emp.name}</div>
+                            <div class="text-sm text-gray-500">ID: ${emp.id}</div>
+                            <div class="text-sm text-gray-500">TERPAKAI: ${emp.usedLeave || 0} HARI | SISA: ${emp.remainingLeave} HARI</div>
+                            ${emp.supervisorName ? `<div class="text-sm text-gray-500">👤 PENGAWAS: ${emp.supervisorName}</div>` : ''}
+                            ${emp.supervisorPhone ? `<div class="text-sm text-gray-500">📱 WA PENGAWAS: ${emp.supervisorPhone}</div>` : ''}
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick='handleEditEmployee(${JSON.stringify(emp).replace(/'/g, "\\'")})' class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">EDIT</button>
+                            <button onclick="handleDeleteEmployee('${emp.id}')" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">HAPUS</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.selectEmployee = function(id) {
+            state.selectedEmployee = state.employees.find(e => e.id === id);
+            state.formData = {
+                jabatan: '',
+                unitKerja: '',
+                jenisCuti: '',
+                alasan: '',
+                lamaCuti: '',
+                tanggalMulai: '',
+                tanggalSelesai: '',
+                alamat: '',
+                telepon: '',
+                email: '',
+                petugasPengganti: '',
+                persetujuanPengawas: ''
+            };
+            state.photoPreview = null;
+            state.page = 'form';
+            render();
+        };
+
+        window.goToSelect = function() {
+            state.page = 'select';
+            state.selectedEmployee = null;
+            state.searchTerm = '';
+            render();
+        };
+
+        window.updateFormField = function(field, value) {
+            if (field === 'email') {
+                state.formData[field] = String(value || '').trim();
+            } else {
+                state.formData[field] = String(value || '').toUpperCase();
+            }
+            if (field === 'jenisCuti' || field === 'jabatan') {
+                render();
+            }
+        };
+
+        window.updateLamaCuti = function(value) {
+            state.formData.lamaCuti = value;
+
+            if (state.formData.tanggalMulai) {
+                // Jika tanggal mulai jatuh Sabtu/Minggu, geser ke hari kerja terdekat
+                const adjStart = adjustToNextWeekday(state.formData.tanggalMulai);
+                if (adjStart && adjStart !== state.formData.tanggalMulai) {
+                    state.formData.tanggalMulai = adjStart;
+                }
+
+                // Hitung tanggal selesai berdasarkan hari kerja (tanpa Sabtu/Minggu)
+                state.formData.tanggalSelesai = calculateEndDateWorkdays(state.formData.tanggalMulai, value);
+            }
+            render();
+        };
+
+        window.updateTanggalMulai = function(value) {
+            // Jika user memilih Sabtu/Minggu, otomatis geser ke hari kerja berikutnya
+            const adj = adjustToNextWeekday(value);
+            state.formData.tanggalMulai = adj || value;
+
+            if (state.formData.lamaCuti) {
+                state.formData.tanggalSelesai = calculateEndDateWorkdays(state.formData.tanggalMulai, state.formData.lamaCuti);
+            }
+            render();
+        };
+
+        window.handlePhotoUpload = function(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    state.photoPreview = e.target.result;
+                    render();
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        window.removePhoto = function() {
+            state.photoPreview = null;
+            render();
+        };
+
+        window.openAdminLogin = function() {
+            state.showAdminLogin = true;
+            state.isModalOpen = true;
+            // default SELALU pilih admin setiap buka modal (agar tidak nyangkut ke manager)
+            state.userRole = 'admin';
+            pauseAutoRefresh();
+            render();
+            // Fokus agar langsung bisa mengetik
+            setTimeout(() => {
+                const el = document.getElementById('loginPassword');
+                if (el) el.focus();
+            }, 80);
+        };
+
+        window.setLoginRole = function(role) {
+            state.userRole = (role === 'manager') ? 'manager' : 'admin';
+            // rerender modal agar tombol aktif berubah
+            render();
+            setTimeout(() => {
+                const el = document.getElementById('loginPassword');
+                if (el) el.focus();
+            }, 50);
+        };
+
+        window.closeAdminLogin = function() {
+            state.showAdminLogin = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openSettings = function() {
+            state.showSettings = true;
+            state.isModalOpen = true;
+            pauseAutoRefresh();
+            render();
+        };
+
+        window.closeSettings = function() {
+            state.showSettings = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openChangePassword = function() {
+            state.showSettings = false;
+            state.showChangePassword = true;
+            render();
+        };
+
+        window.closeChangePassword = function() {
+            state.showChangePassword = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openEmployeeForm = function() {
+            state.showSettings = false;
+            state.showEmployeeForm = true;
+            state.editingEmployee = null;
+            state.employeeFormData = { id: '', name: '', usedLeave: 0, supervisorName: '', supervisorSalutation: '', supervisorPhone: '', maxLeaveRequestDays: 2 };
+            state.employeeSearchTerm = '';
+            render();
+        };
+
+        window.closeEmployeeForm = function() {
+            state.showEmployeeForm = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openWhatsAppSettings = function() {
+            state.showSettings = false;
+            state.showWhatsAppSettings = true;
+            render();
+        };
+
+        window.closeWhatsAppSettings = function() {
+            state.showWhatsAppSettings = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openKopSettings = function() {
+            state.showSettings = false;
+            state.showKopSettings = true;
+            render();
+        };
+
+        window.closeKopSettings = function() {
+            state.showKopSettings = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openMaintenanceSettings = function() {
+            state.showSettings = false;
+            state.showMaintenanceSettings = true;
+            render();
+        };
+
+        window.closeMaintenanceSettings = function() {
+            state.showMaintenanceSettings = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.openStatusCheck = function() {
+            state.showStatusCheck = true;
+            state.statusCheckId = '';
+            state.statusEmployeeSearchTerm = '';
+            state.statusCheckResult = null;
+            state.isModalOpen = true;
+            pauseAutoRefresh();
+            render();
+            setTimeout(() => {
+                const el = document.getElementById('statusEmployeeSearch');
+                if (el) el.focus();
+            }, 50);
+        };
+
+        window.closeStatusCheck = function() {
+            state.showStatusCheck = false;
+            state.isModalOpen = false;
+            resumeAutoRefresh();
+            render();
+        };
+
+        window.toggleMaintenance = async function() {
+            try {
+                const newStatus = !state.settings.websiteActive;
+                const saved = await apiCall('updateSettings', { websiteActive: newStatus });
+                if (!saved || saved.success === false) {
+                    alert((saved && saved.error) ? saved.error : 'GAGAL MENGUBAH STATUS!');
+                    return;
+                }
+                state.settings.websiteActive = newStatus;
+                render();
+            } catch (error) {
+                alert('GAGAL MENGUBAH STATUS!');
+            }
+        };
+
+        window.handleEditEmployee = function(emp) {
+            state.editingEmployee = emp;
+            state.employeeFormData = {
+                id: emp.id,
+                name: emp.name,
+                usedLeave: (emp.usedLeave !== undefined && emp.usedLeave !== null) ? emp.usedLeave : 0,
+                supervisorName: emp.supervisorName || '',
+                supervisorSalutation: emp.supervisorSalutation || '',
+                supervisorPhone: emp.supervisorPhone || '',
+                maxLeaveRequestDays: (emp.maxLeaveRequestDays !== undefined && emp.maxLeaveRequestDays !== null) ? emp.maxLeaveRequestDays : 2
+            };
+            state.employeeSearchTerm = '';
+            render();
+        };
+
+        window.cancelEmployeeEdit = function() {
+            state.editingEmployee = null;
+            state.employeeFormData = { id: '', name: '', usedLeave: 0, supervisorName: '', supervisorSalutation: '', supervisorPhone: '', maxLeaveRequestDays: 2 };
+            render();
+        };
+
+        window.handleSaveEmployee = async function() {
+            const wasEditing = !!state.editingEmployee;
+            const empId = document.getElementById('empId')?.value?.toUpperCase();
+            const empName = document.getElementById('empName')?.value?.toUpperCase();
+            const empUsedLeave = parseInt(document.getElementById('empUsedLeave')?.value);
+            const empSupervisorName = document.getElementById('empSupervisorName')?.value?.toUpperCase();
+            const empSupervisor = document.getElementById('empSupervisor')?.value;
+
+            const empMaxLeaveDays = parseInt(document.getElementById('empMaxLeaveDays')?.value);
+            if (isNaN(empMaxLeaveDays) || empMaxLeaveDays < 1 || empMaxLeaveDays > 12) {
+                alert('MAKSIMAL LAMA PENGAJUAN CUTI HARUS ANTARA 1-12 HARI!');
+                return;
+            }
+
+            if (!empId || !empName) {
+                alert('ID DAN NAMA KARYAWAN WAJIB DIISI!');
+                return;
+            }
+
+            if (isNaN(empUsedLeave) || empUsedLeave < 0 || empUsedLeave > 12) {
+                alert('CUTI TERPAKAI HARUS ANTARA 0-12 HARI!');
+                return;
+            }
+
+            const remainingLeave = 12 - empUsedLeave;
+
+            const empSupervisorSalutation = document.getElementById('empSupervisorSalutation')?.value;
+
+            const employeeData = {
+                id: state.editingEmployee ? state.editingEmployee.id : empId,
+                name: empName,
+                remainingLeave: remainingLeave,
+                usedLeave: empUsedLeave,
+                supervisorName: empSupervisorName,
+                supervisorPhone: empSupervisor,
+                // opsional: bisa diisi dari Google Sheet langsung
+                supervisorSalutation: empSupervisorSalutation ? empSupervisorSalutation.toUpperCase() : '',
+                // baru: maks pengajuan cuti per karyawan
+                maxLeaveRequestDays: empMaxLeaveDays
+            };
+
+            try {
+                let saved;
+                if (state.editingEmployee) {
+                    saved = await apiCall('updateEmployee', employeeData);
+                } else {
+                    saved = await apiCall('addEmployee', employeeData);
+                }
+                if (!saved || saved.success === false) {
+                    alert((saved && saved.error) ? saved.error : 'GAGAL MENYIMPAN KARYAWAN!');
+                    return;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await loadEmployees();
+                
+                state.editingEmployee = null;
+                state.employeeFormData = { id: '', name: '', usedLeave: 0, supervisorName: '', supervisorSalutation: '', supervisorPhone: '', maxLeaveRequestDays: 2 };
+                render();
+                alert(wasEditing ? 'KARYAWAN BERHASIL DIUPDATE!' : 'KARYAWAN BERHASIL DITAMBAHKAN!');
+            } catch (error) {
+                alert('GAGAL MENYIMPAN KARYAWAN!');
+            }
+        };
+
+        window.handleDeleteEmployee = async function(id) {
+            if (!confirm('YAKIN INGIN MENGHAPUS KARYAWAN INI?')) return;
+            
+            try {
+                const del = await apiCall('deleteEmployee', { id });
+                if (!del || del.success === false) {
+                    alert((del && del.error) ? del.error : 'GAGAL MENGHAPUS KARYAWAN!');
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await loadEmployees();
+                render();
+            } catch (error) {
+                alert('GAGAL MENGHAPUS KARYAWAN!');
+            }
+        };
+
+        window.updateFilterDate = function(value) {
+            state.adminFilterDate = value;
+            render();
+        };
+
+        window.resetFilter = function() {
+            state.adminFilterDate = '';
+            render();
+        };
+
+        window.logout = function() {
+            state.isAdminLoggedIn = false;
+            state.adminUsername = 'admin';
+            state.userRole = 'admin';
+            state.page = 'select';
+            stopAutoRefresh();
+            render();
+        };
+
+        window.togglePasswordVisibility = function(inputId) {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.type = input.type === 'password' ? 'text' : 'password';
+            }
+        };
+
+        window.printRequest = function(rowIndex) {
+            let baseUrl = (CONFIG.PUBLIC_BASE_URL && String(CONFIG.PUBLIC_BASE_URL).trim())
+                ? String(CONFIG.PUBLIC_BASE_URL).trim().split('?')[0].split('#')[0]
+                : (window.location.origin && window.location.origin !== 'null')
+                    ? (window.location.origin + window.location.pathname)
+                    : window.location.href.split('?')[0].split('#')[0];
+
+            baseUrl = baseUrl.replace(/\/+$/, '/');
+
+            // Konsisten dengan QR: pakai shortlink
+            // ui=1 agar tombol PRINT/KEMBALI muncul (khusus admin)
+            window.open(`${baseUrl}?p=${rowIndex}&ui=1`, '_blank');
+        };
+
+        window.handleApproval = handleApproval;
+        window.checkStatus = checkStatus;
+
+        // Auto-refresh functions
+        function startAutoRefresh() {
+            if (state.autoRefreshInterval) return;
+            state.autoRefreshInterval = setInterval(async () => {
+                if (!state.isModalOpen && state.page === 'admin') {
+                    await loadLeaveRequests();
+                }
+            }, 5000);
+        }
+
+        function stopAutoRefresh() {
+            if (state.autoRefreshInterval) {
+                clearInterval(state.autoRefreshInterval);
+                state.autoRefreshInterval = null;
+            }
+        }
+
+        function pauseAutoRefresh() {
+            state.isModalOpen = true;
+        }
+
+        function resumeAutoRefresh() {
+            state.isModalOpen = false;
+        }
+
+        // Time update (TANPA RENDER ULANG - AGAR INPUT MODAL TIDAK KE-RESET)
+        setInterval(() => {
+            state.currentTime = new Date();
+
+            const clockEls = document.querySelectorAll('[data-clock]');
+            const dateEls = document.querySelectorAll('[data-date]');
+
+            const clockText = formatTime(state.currentTime);
+            const dateText = formatDate(state.currentTime);
+
+            clockEls.forEach(el => (el.textContent = clockText));
+            dateEls.forEach(el => (el.textContent = dateText));
+        }, 1000);
+
+        // Initialize
+        async function init() {
+            await loadSettings();
+            await loadEmployees();
+            render();
+        }
+
+        init();
+    </script>
+</body>
+</html>
