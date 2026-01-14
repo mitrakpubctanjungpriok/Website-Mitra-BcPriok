@@ -97,7 +97,7 @@
             ADMIN_EMAIL: 'mitrakpubctanjungpriok@gmail.com',
             // OPSIONAL: ISI DENGAN URL WEBSITE PUBLIK ANDA (AGAR QR SELALU MENGARAH KE DOMAIN PUBLIK)
             // CONTOH: 'https://nama-domain-anda.com/index.html'
-            PUBLIC_BASE_URL: 'https://website-mitrabcpriok.pages.dev/cuti/',
+            PUBLIC_BASE_URL: 'https://pengajuan-cuti-mitra-cs.pages.dev/',
             // LOGO UNTUK OVERLAY DI TENGAH QR
             LOGO_URL: 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiBO_R0vvTCx7Nc0bMU5Y2jU0LlnZZO1-lBJRZOICD1nz9nDNA3Bn6xxhjAH33B6mmDJHlID3Bvl9u6ocm6nSvPANPpdKLcxyY8uO2PtZzXug45_dePGsVPIYrHoCVunC2clgEpITij_vvw/s1600/LOGO+Depkeu.JPG',
             // LOGO UNTUK KOP SURAT
@@ -1017,8 +1017,13 @@
             // Pastikan mode preview print tidak terbawa ke halaman lain
             document.body.classList.remove('print-preview');
             
+            // Jika website nonaktif (maintenance), tetap tampilkan halaman maintenance.
+            // Namun admin harus tetap bisa membuka modal login.
             if (!state.settings.websiteActive && !state.isAdminLoggedIn) {
                 app.innerHTML = renderMaintenancePage();
+                // Render modal login admin jika diminta
+                if (state.showAdminLogin) app.innerHTML += renderAdminLoginModal();
+                attachEventListeners();
                 return;
             }
 
