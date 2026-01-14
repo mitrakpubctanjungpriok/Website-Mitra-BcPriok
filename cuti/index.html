@@ -367,7 +367,7 @@
                 label: 'KONFIRMASI PERSETUJUAN',
                 message: ({ salutation, supervisorName, nama, jenisCuti, tanggal, baseUrl }) => {
                     const to = `${salutation ? salutation + ' ' : ''}${supervisorName || 'Pengawas'}`;
-                    return `Yth. ${to},\n\nDengan hormat, saya Admin Sistem Cuti KPU BC Tanjung Priok.\n\nMohon konfirmasi persetujuan untuk pengajuan cuti berikut:\n\n📋 *DATA PENGAJUAN*\n• Nama Karyawan: *${nama}*\n• Jenis Cuti: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas pesan ini dengan:\n✅ *SETUJU* - jika menyetujui pengajuan\n❌ *TIDAK SETUJU* - jika menolak pengajuan\n\nTerima kasih.\n\n_Pesan otomatis dari Sistem Izin Cuti_\n${baseUrl}`;
+                    return `Yth. ${to},\n\nDengan hormat, saya Admin Sistem Cuti Mitra KPU Bea Cukai Tanjung Priok.\n\nMohon konfirmasi persetujuan untuk pengajuan cuti berikut:\n\n📋 *DATA PENGAJUAN*\n• Nama Karyawan: *${nama}*\n• Jenis Cuti: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas pesan ini dengan:\n✅ *SETUJU* - jika menyetujui pengajuan\n❌ *TIDAK SETUJU* - jika menolak pengajuan\n\nTerima kasih.\n\n_Pesan otomatis dari Sistem Izin Cuti_\n${baseUrl}`;
                 }
             },
             {
@@ -375,7 +375,7 @@
                 label: 'REMINDER PERSETUJUAN',
                 message: ({ salutation, supervisorName, nama, jenisCuti, tanggal }) => {
                     const to = `${salutation ? salutation + ' ' : ''}${supervisorName || 'Pengawas'}`;
-                    return `Yth. ${to},\n\nMohon maaf mengganggu. Ini adalah pengingat untuk konfirmasi pengajuan cuti:\n\n• Nama: *${nama}*\n• Jenis: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas:\n✅ *SETUJU* atau ❌ *TIDAK SETUJU*\n\nTerima kasih.\n\n_Sistem Izin Cuti KPU BC Tanjung Priok_`;
+                    return `Yth. ${to},\n\nMohon maaf mengganggu. Ini adalah pengingat untuk konfirmasi pengajuan cuti:\n\n• Nama: *${nama}*\n• Jenis: *${jenisCuti}*\n• Tanggal: *${tanggal}*\n\nMohon balas:\n✅ *SETUJU* atau ❌ *TIDAK SETUJU*\n\nTerima kasih.\n\n_Sistem Izin Cuti Mitra KPU Bea Cukai Tanjung Priok_`;
                 }
             },
             {
