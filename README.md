@@ -1,159 +1,182 @@
-# 🏛️ Mitra KPU Bea Cukai - Sistem Layanan Digital
+# 🏛️ Portal Mitra — KPU Bea Cukai Tanjung Priok (PWA)
 
-Website sistem layanan digital untuk Mitra KPU Bea Cukai Tanjung Priok Tipe A. Desain modern, elegan, dan responsif dengan efek glassmorphism dan animasi premium.
+Portal Mitra adalah **aplikasi web (PWA)** sebagai menu utama untuk mengakses layanan digital Mitra KPU Bea Cukai Tanjung Priok.
 
-## ✨ Fitur
-
-- 🎨 Desain modern dengan glassmorphism effect
-- 💎 Animasi smooth dan interaktif
-- 📱 Responsive untuk semua perangkat
-- 🌊 Gradient biru premium yang elegan
-- ⚡ Hover effects yang menarik
-- 🎯 4 menu layanan utama:
-  - Permohonan Pengajuan Cuti
-  - Izin Keluar Kantor
-  - Pengajuan Tukar Piket 24/7
-  - Laporan Kedisiplinan
-
-## 🚀 Demo
-
-Live demo: [https://your-site.pages.dev](https://your-site.pages.dev)
-
-## 📁 Struktur File
-```
-mitra-bea-cukai/
-├── index.html          # File utama website
-├── logo.png           # Logo Mitra Bea Cukai
-└── README.md          # Dokumentasi
-```
-
-## 🔧 Instalasi
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/username/mitra-bea-cukai.git
-cd mitra-bea-cukai
-```
-
-### 2. Buka di Browser
-
-Cukup buka file `index.html` di browser Anda, atau gunakan Live Server di VS Code.
-
-## 🔗 Konfigurasi Link Form
-
-Edit file `index.html` dan ganti placeholder link dengan link form Anda:
-```html
-<!-- Cari dan ganti bagian ini -->
-<a href="LINK_FORM_CUTI_ANDA" class="menu-card">
-<a href="LINK_FORM_IZIN_ANDA" class="menu-card">
-<a href="LINK_FORM_PIKET_ANDA" class="menu-card">
-<a href="LINK_FORM_LAPORAN_ANDA" class="menu-card">
-
-<!-- Contoh setelah diganti -->
-<a href="https://forms.gle/abcdefghijk" class="menu-card">
-```
-
-## 📤 Deploy ke GitHub Pages
-
-### Metode 1: Via GitHub Website
-
-1. Push code ke repository GitHub
-2. Buka **Settings** > **Pages**
-3. Pilih branch `main` dan folder `/ (root)`
-4. Klik **Save**
-5. Website akan live di `https://username.github.io/mitra-bea-cukai`
-
-### Metode 2: Via Command Line
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/username/mitra-bea-cukai.git
-git push -u origin main
-```
-
-## ☁️ Deploy ke Cloudflare Pages
-
-1. Login ke [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Pilih **Pages** > **Create a project**
-3. Connect ke repository GitHub Anda
-4. Konfigurasi:
-   - **Project name**: `mitra-bea-cukai`
-   - **Production branch**: `main`
-   - **Build command**: (kosongkan)
-   - **Build output directory**: (kosongkan)
-5. Klik **Save and Deploy**
-6. Website akan live di `https://mitra-bea-cukai.pages.dev`
-
-## 🎨 Kustomisasi
-
-### Mengganti Logo
-
-Ganti file `logo.png` dengan logo Anda. Pastikan ukuran optimal (500x500px, format PNG dengan background transparan).
-
-### Mengganti Warna
-
-Edit bagian CSS di `index.html`:
-```css
-/* Header gradient */
-.header {
-    background: linear-gradient(135deg, #0052d4 0%, #4364f7 50%, #6fb1fc 100%);
-}
-
-/* Background body */
-body {
-    background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #2d5f8d 100%);
-}
-```
-
-### Menambah Menu Baru
-
-Salin struktur menu card dan sesuaikan:
-```html
-<a href="LINK_ANDA" class="menu-card">
-    <div class="icon-wrapper">
-        <div class="icon">🎯</div>
-    </div>
-    <div class="menu-content">
-        <h3>Judul Menu Baru</h3>
-    </div>
-    <div class="accent-line"></div>
-</a>
-```
-
-## 📱 Browser Support
-
-- ✅ Chrome (recommended)
-- ✅ Firefox
-- ✅ Safari
-- ✅ Edge
-- ✅ Opera
-
-## 🛠️ Teknologi
-
-- HTML5
-- CSS3 (Animations, Gradients, Flexbox)
-- Vanilla JavaScript
-- Responsive Design
-
-## 📝 License
-
-MIT License - bebas digunakan untuk keperluan pribadi maupun komersial.
-
-## 👤 Author
-
-**Tim IT Mitra KPU Bea Cukai**
-- Website: [https://mitra-bea-cukai.pages.dev](https://mitra-bea-cukai.pages.dev)
-
-## 🤝 Contributing
-
-Kontribusi, issues, dan feature requests sangat diterima!
-
-## ⭐ Show Your Support
-
-Jika project ini membantu Anda, berikan ⭐ di repository ini!
+> Catatan penting: Aplikasi ini didesain **wajib menggunakan internet**. Saat offline, aplikasi akan menampilkan pemberitahuan tidak ada koneksi.
 
 ---
 
-**Made with ❤️ for MUHAMMAD ALFINAS**
+## ✨ Fitur Utama
+
+- 📱 **Bisa di-install di Android** (PWA / Add to Home Screen)
+- 🌐 **Wajib internet** (network-only; saat offline tampil pesan)
+- 🎯 Menu layanan terintegrasi dalam **1 domain**:
+  - 📅 Pengajuan Cuti
+  - 🚪 Izin Keluar Area
+  - 🔄 Tukar Jadwal Piket
+  - 📋 Laporan Kedisiplinan (Laporan Pelanggaran)
+- 🎨 Tampilan modern, responsif, mobile-friendly
+
+---
+
+## 🚀 Live
+
+- Halaman utama: `https://<project>.pages.dev/`
+- Alias (jika ada): `https://<project>.pages.dev/design1.html` → redirect ke `/`
+
+---
+
+## 📁 Struktur Project (Disarankan)
+
+> Pastikan penamaan file **case-sensitive** (harus `index.html`, bukan `Index.html`).
+
+```
+/ (root)
+├─ index.html                # Portal menu utama
+├─ manifest.json             # PWA manifest
+├─ sw.js                     # Service Worker (network-only + offline page)
+├─ icon-192.png              # Icon PWA 192x192 (PNG)
+├─ icon-512.png              # Icon PWA 512x512 (PNG)
+├─ logo_mitra_bc_priok.webp  # Logo header (opsional)
+├─ design1.html              # (opsional) redirect ke /
+│
+├─ cuti/
+│  └─ index.html             # Aplikasi Pengajuan Cuti
+├─ izin/
+│  └─ index.html             # Aplikasi Izin Keluar Area
+├─ tukar-piket/
+│  └─ index.html             # Aplikasi Tukar Jadwal Piket
+└─ laporan/
+   └─ index.html             # Aplikasi Laporan Pelanggaran
+```
+
+---
+
+## 📲 Install di Android (PWA)
+
+1. Buka website di **Chrome Android**.
+2. Jika muncul banner **Install**, klik **Install**.
+   - Alternatif: menu (⋮) → **Install app** / **Add to Home screen**.
+
+### Kenapa perlu `icon-192.png` & `icon-512.png`?
+- **192x192**: icon di home screen/app drawer.
+- **512x512**: resolusi tinggi & splash screen.
+
+> Format harus **PNG** dan ukuran sesuai (192×192 dan 512×512).
+
+---
+
+## ☁️ Deploy ke Cloudflare Pages
+
+### Metode (Connect to Git)
+1. Cloudflare Dashboard → **Workers & Pages** → **Create application** → **Pages**.
+2. Connect repository GitHub.
+3. Build settings:
+   - **Framework preset**: None
+   - **Build command**: (kosong)
+   - **Build output directory**: (kosong / root)
+4. Deploy.
+
+> Cloudflare Pages otomatis HTTPS (syarat PWA terpenuhi).
+
+---
+
+## 🔧 Konfigurasi Tiap Layanan (Ringkas)
+
+Semua layanan di folder (`/cuti`, `/izin`, `/tukar-piket`, `/laporan`) umumnya menggunakan:
+- **Google Sheets** sebagai database
+- **Google Apps Script** sebagai backend (Web App)
+
+### Prinsip umum konfigurasi
+1. Pastikan Apps Script sudah **Deploy → Web app**.
+2. Akses: **Who has access: Anyone**.
+3. Di masing-masing `index.html` layanan, cari variabel konfigurasi URL (contoh: `SCRIPT_URL`, `GOOGLE_SCRIPT_URL`, dll) lalu isi dengan URL Web App Apps Script.
+
+> Nama variabel bisa berbeda tiap layanan, jadi gunakan pencarian (Ctrl+F) kata kunci: `SCRIPT`, `GOOGLE`, `URL`, `exec`.
+
+---
+
+## 📅 Layanan: Pengajuan Cuti (folder `/cuti/`)
+
+### Umumnya membutuhkan Google Sheets:
+- `Karyawan`
+- `Pengajuan Cuti`
+- `Admin`
+
+### Catatan
+- Nama sheet harus **persis** sesuai yang dipakai aplikasi.
+- Jika ada fitur unggah surat dokter: tunggu proses upload/kompres selesai sebelum submit.
+
+---
+
+## 🚪 Layanan: Izin Keluar Area (folder `/izin/`)
+
+### Umumnya membutuhkan Google Sheets:
+- `Absensi`
+- `Karyawan`
+- `Settings`
+
+### Struktur ringkas contoh
+**Absensi** (contoh kolom):
+`ID | Nama | Tipe | WaktuKeluar | WaktuMasuk | Izin... | Keperluan | Tanggal | Jam | Foto`
+
+**Karyawan**:
+`ID | Nama`
+
+**Settings**:
+`Type | Value`
+
+---
+
+## 🔄 Layanan: Tukar Jadwal Piket (folder `/tukar-piket/`)
+
+### Umumnya membutuhkan Google Sheets:
+- `Daftar_Petugas`
+- `Data_Pengajuan`
+
+Catatan:
+- Jika daftar petugas tidak muncul, pastikan `Daftar_Petugas` terisi mulai baris 2.
+
+---
+
+## 📋 Layanan: Laporan Kedisiplinan / Laporan Pelanggaran (folder `/laporan/`)
+
+### Umumnya membutuhkan Google Sheets:
+- `Daftar_Petugas` (nama pelapor & pelanggar)
+- `Laporan_Pelanggaran`
+
+Catatan:
+- Validasi umum: **Pelapor ≠ Pelanggar**.
+- Foto (jika ada) sering disimpan sebagai **base64**.
+
+---
+
+## 🌐 Catatan Penting (Agar Tidak Error)
+
+- **Case-sensitive**: `index.html` harus huruf kecil.
+- Pastikan setiap folder layanan memiliki `index.html`.
+- Jika klik menu kembali ke halaman awal, biasanya karena:
+  - Folder tidak ada / salah nama
+  - File `index.html` salah kapitalisasi
+  - Deploy belum ter-update
+
+---
+
+## 🧩 Teknologi
+
+- HTML5, CSS3, JavaScript
+- Tailwind CSS (CDN)
+- Google Apps Script + Google Sheets
+- Cloudflare Pages (hosting)
+
+---
+
+## 📝 Lisensi
+
+MIT License (sesuaikan jika diperlukan).
+
+---
+
+## 👤 Kontak
+
+Jika perlu bantuan/dukungan internal, gunakan kontak yang tertera di aplikasi (WhatsApp/Email Admin).
